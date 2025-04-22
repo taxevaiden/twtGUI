@@ -6,17 +6,37 @@ import Layout from "../../layouts/Layout.astro";
     <div class="p-4">
         <p><strong>./settings/info</strong></p>
 
-        <div id="infoContainer">
-
-        </div>
+        <div id="infoContainer"></div>
 
         <script>
-            window.addEventListener("DOMContentLoaded", () => {
-                const container = document.getElementById("infoContainer") as HTMLDivElement;
+            window.addEventListener("DOMContentLoaded", async () => {
+                const container = document.getElementById(
+                    "infoContainer",
+                ) as HTMLDivElement;
 
-                const appVersion = window.electronAPI.getVersion()
+                const appVersion = await window.electronAPI.getVersion();
+                const versions = await window.electronAPI.getVersions();
+                const platform = await window.electronAPI.getPlatform();
 
-                container.innerHTML = `<p>${appVersion}</p>`
+                container.innerHTML = `
+                  <p class="mt-4">twtGUI is a twtxt GUI client.</p>
+
+                  <p class="text-white mt-4">twtGUI version: ${appVersion}</p>
+                  <p class="text-white mt-4">Platform: ${platform}</p>
+
+
+                  <p class="text-white mt-4">Electron version: ${versions.electron}</p>
+                  <p class="text-white">Node.js version: ${versions.node}</p>
+                  <p class="text-white">Chromium version: ${versions.chrome}</p>
+                  <p class="text-white">V8 version: ${versions.v8}</p>
+
+                  <p class="my-4"><b>acknowledgements</b></p>
+
+                  <ul>
+                    <li>- this app uses the IBM Plex Mono font, licensed under the Open Font License. the font includes modifications from the BlexMono Nerd Font.</li>
+                    <li>- this app is licensed under the MIT License.</li>
+                  </ul>
+                `;
             });
         </script>
     </div>

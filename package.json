@@ -10,7 +10,7 @@
     "build:dev": "astro build && electron .",
     "dev": "concurrently \"npm run start:dev\" \"npm run electron:dev\"",
     "start:dev": "astro dev",
-    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "electron:dev": "wait-on http://localhost:8080 && cross-env NODE_ENV=development electron .",
     "electron": "electron .",
     "start": "electron-forge start",
     "package": "electron-forge package",
@@ -23,7 +23,8 @@
     "astro": "^5.1.1",
     "dotenv": "^16.4.7",
     "electron-squirrel-startup": "^1.0.1",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "wait-on": "^8.0.3"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.6.0",

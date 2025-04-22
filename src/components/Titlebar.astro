@@ -1,9 +1,19 @@
+---
+import os from "node:os";
+
+const platform = os.platform();
+
+console.log(platform);
+---
+
 <!-- electronic Titlebar
 (this is for electron) -->
 <div class="w-full h-8 flex items-center [app-region:drag] fixed -top-1 left-0">
-    <p class="ml-4 mt-1 select-none">twtGUI</p>
+    <p class={`${platform == "darwin" ? `ml-20` : `ml-4`} mt-1 select-none`}>
+        twtGUI
+    </p>
 
-    <div class="flex-1">
+    {platform != 'darwin' ? (<div class="flex-1">
         <div
             class="select-none float-right text-center w-11 h-8 leading-[2rem] text-green-200 font-mono drop-shadow-text bg-transparent hover:bg-red-600 transition-colors z-10 [app-region:no-drag]"
             id="close"
@@ -24,9 +34,10 @@
         >
             &ndash;
         </div>
-    </div>
+    </div>) : null}
 </div>
 
+{(platform != 'darwin' ? (
 <script>
     const minimize = document.getElementById("minimize") as HTMLDivElement;
     minimize.addEventListener("click", () => {
@@ -44,3 +55,4 @@
         window.electronAPI.invoke("window-close");
     });
 </script>
+) : null )}
