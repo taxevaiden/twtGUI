@@ -50,7 +50,7 @@ you need,,,
 | OS | Version | Status |
 |----|---------|--------|
 | Windows | Windows 10 and newer | Fully supported |
-| macOS | macOS (Big Sur and newer) | Haven't tested yet, should be supported |
+| macOS | macOS (Big Sur and newer) | Fully supported |
 
 #### linux
 
