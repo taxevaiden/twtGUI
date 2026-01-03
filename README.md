@@ -15,9 +15,7 @@ made with C++ and Qt
 
 ## features
 
-right now, you can post tweets and see your tweets.
-
-i will work on seeing tweets from those you have followed soon.
+right now, you can post tweets and see tweets from other people.
 
 ## compatibility
 
