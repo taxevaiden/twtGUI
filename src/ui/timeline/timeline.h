@@ -1,8 +1,11 @@
 #ifndef TIMELINE_H
 #define TIMELINE_H
 
+#include <string>
 #include <QPushButton>
 #include <QVBoxLayout>
+
+namespace twtgui {
 
 class Timeline : public QWidget
 {
@@ -19,5 +22,9 @@ class Timeline : public QWidget
         QVBoxLayout* mainLayout;
         QVBoxLayout* tweetsLayout;
 };
+
+} // namespace twtgui
+
+using Timeline = twtgui::Timeline;
 
 #endif // TIMELINE_H

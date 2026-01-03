@@ -12,7 +12,9 @@
 
 #include "SimpleIni.h"
 
-Timeline::Timeline(QWidget *parent, std::string configFile)
+namespace twtgui {
+
+twtgui::Timeline::Timeline(QWidget *parent, std::string configFile)
     : QWidget(parent), configFile(configFile)
 {
     mainLayout = new QVBoxLayout(this);
@@ -20,20 +22,27 @@ Timeline::Timeline(QWidget *parent, std::string configFile)
     // refresh button
     refreshButton = new QPushButton("Refresh", this);
     connect(refreshButton, &QPushButton::clicked, this, &Timeline::handleButtonClick);
-
+   
     // container layout for tweets
     tweetsLayout = new QVBoxLayout();
-    QWidget *tweetsContainer = new QWidget(this);
+    QWidget *tweetsContainer = new QWidget();
     tweetsContainer->setLayout(tweetsLayout);
 
-    mainLayout->addWidget(tweetsContainer);
+    QScrollArea *scrollArea = new QScrollArea(this);
+    scrollArea->setWidget(tweetsContainer);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setMinimumHeight(512);
+    scrollArea->setMinimumWidth(512);
+
+    mainLayout->addWidget(scrollArea);
     mainLayout->addWidget(refreshButton);
     setLayout(mainLayout);
 
     refreshTimeline(); // initial load
 }
 
-void Timeline::refreshTimeline()
+void twtgui::Timeline::refreshTimeline()
 {
     QLayoutItem *item;
     while ((item = tweetsLayout->takeAt(0)) != nullptr)
@@ -80,14 +89,19 @@ void Timeline::refreshTimeline()
         QLabel *tweetLabel = new QLabel(
             tweet.first.toString("MM-dd-yyyy hh:mm AP") + " <b>" + QString::fromStdString(username) + "</b>: " + QString::fromStdString(tweet.second),
             this);
+        tweetLabel->setWordWrap(true);
         tweetsLayout->insertWidget(0, tweetLabel);
     }
+
+    tweetsLayout->addStretch();
 }
 
-void Timeline::handleButtonClick()
+void twtgui::Timeline::handleButtonClick()
 {
     qDebug() << "Refresh button clicked!";
     refreshTimeline();
 }
 
-Timeline::~Timeline() {}
+twtgui::Timeline::~Timeline() {}
+
+} // namespace twtgui

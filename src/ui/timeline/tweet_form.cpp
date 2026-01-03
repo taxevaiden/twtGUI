@@ -8,7 +8,9 @@
 #include <QTimeZone>
 #include <QDebug>
 
-TweetForm::TweetForm(QWidget *parent, Timeline* timeline, std::string twtxtFile)
+namespace twtgui {
+
+twtgui::TweetForm::TweetForm(QWidget *parent, Timeline* timeline, std::string twtxtFile)
     : QWidget(parent)
 {
     this->twtxtFile = twtxtFile;
@@ -29,7 +31,7 @@ TweetForm::TweetForm(QWidget *parent, Timeline* timeline, std::string twtxtFile)
     connect(postButton, &QPushButton::clicked, this, &TweetForm::handleButtonClick);
 }
 
-void TweetForm::handleButtonClick()
+void twtgui::TweetForm::handleButtonClick()
 {
     if (field->text().isEmpty()) {
         return;
@@ -59,4 +61,6 @@ void TweetForm::handleButtonClick()
     return;
 }
 
-TweetForm::~TweetForm() {}
+twtgui::TweetForm::~TweetForm() {}
+
+} // namespace twtgui

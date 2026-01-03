@@ -1,6 +1,9 @@
 #include "ui/window.h"
-#include "ui/tweet_form.h"
-#include "ui/timeline.h"
+#include "ui/timeline/tweet_form.h"
+#include "ui/timeline/timeline.h"
+
+#include "ui/view/view_form.h"
+#include "ui/view/view_feed.h"
 
 #include <iostream>
 #include <fstream>
@@ -15,47 +18,66 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QTabWidget>
+#include <QMessageBox>
+#include <QCoreApplication>
+#include <QLibraryInfo>
+#include <QFile>
 
 #include "SimpleIni.h"
 
 int main(int argc, char *argv[])
 {
+
     QApplication a(argc, argv);
 
     CSimpleIniA config;
-    SI_Error rc = config.LoadFile("C:\\Users\\aiden\\AppData\\Roaming\\twtxt\\config");
+    SI_Error rc = config.LoadFile((QDir::homePath().toStdString() + "\\AppData\\Roaming\\twtxt\\config").c_str());
 
     if (rc < 0)
     {
-        qDebug() << "Error: Could not open config.ini file";
-        return 1;
+        qDebug() << "Warning: Could not open config file; proceeding with defaults.";
+        // Continue with defaults; CSimpleIni will return default values where used.
     }
 
-    MainWindow window;
+    twtgui::MainWindow window;
     QString username = config.GetValue("twtxt", "nick", "unknown");
     qDebug() << "Current username:" << username;
 
     window.setWindowTitle("twtGUI - " + username);
 
-    QTabWidget centralWidget (&window);
-
+    // Create central widget and child widgets on the heap so Qt manages their lifetime
+    QTabWidget *centralWidget = new QTabWidget(&window);
 
     // TIMELINE TAB
+    QWidget *timelineWidget = new QWidget();
+    QVBoxLayout *timelineLayout = new QVBoxLayout(timelineWidget);
 
-    QWidget timelineWidget;
-    QVBoxLayout timelineLayout;
+    twtgui::Timeline *timeline = new twtgui::Timeline(timelineWidget, (QDir::homePath().toStdString() + "\\AppData\\Roaming\\twtxt\\config").c_str());
+    twtgui::TweetForm *tweetForm = new twtgui::TweetForm(timelineWidget, timeline, config.GetValue("twtxt", "twtfile", "unknown"));
 
-    Timeline timeline (&timelineWidget, "C:\\Users\\aiden\\AppData\\Roaming\\twtxt\\config");
-    TweetForm tweetForm(&timelineWidget, &timeline, config.GetValue("twtxt", "twtfile", "unknown"));
+    timelineLayout->addWidget(tweetForm);
+    timelineLayout->addWidget(timeline);
 
-    timelineLayout.addWidget(&tweetForm);
-    timelineLayout.addWidget(&timeline);
+    timelineWidget->setLayout(timelineLayout);
+    centralWidget->addTab(timelineWidget, "Timeline");
 
-    timelineWidget.setLayout(&timelineLayout);
+    // VIEW TAB
+    QWidget *viewWidget = new QWidget();
+    QVBoxLayout *viewLayout = new QVBoxLayout(viewWidget);
 
-    centralWidget.addTab(&timelineWidget, "Timeline");
+    twtgui::ViewFeed *viewFeed = new twtgui::ViewFeed(viewWidget, (QDir::homePath().toStdString() + "\\AppData\\Roaming\\twtxt\\config").c_str());
+    twtgui::ViewForm *viewForm = new twtgui::ViewForm(viewWidget, viewFeed);
 
-    window.setCentralWidget(&centralWidget);
+    viewLayout->addWidget(viewForm);
+    viewLayout->addWidget(viewFeed);
+
+    viewWidget->setLayout(viewLayout);
+
+    centralWidget->addTab(viewWidget, "View");
+
+    window.setCentralWidget(centralWidget);
+
     window.show();
 
     return a.exec();

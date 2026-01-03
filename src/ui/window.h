@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 
+namespace twtgui {
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -10,5 +12,11 @@ class MainWindow : public QMainWindow
     public:
         MainWindow(QWidget *parent = nullptr);
         ~MainWindow();
+        void showEvent(QShowEvent* ev);
     };
+
+} // namespace twtgui
+
+using MainWindow = twtgui::MainWindow;
+
 #endif // MAINWINDOW_H
