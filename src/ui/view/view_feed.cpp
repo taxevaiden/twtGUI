@@ -8,10 +8,14 @@
 #include <QDateTime>
 #include <QTimeZone>
 #include <QVBoxLayout>
-#include <QLabel>
+#include <QListView>
+#include <QStandardItemModel>
+#include <QAbstractItemView>
+#include <QAbstractScrollArea>
 #include <QDebug>
 
 #include "SimpleIni.h"
+#include "../widgets/richtextdelegate.h"
 
 namespace twtgui {
 
@@ -24,19 +28,20 @@ twtgui::ViewFeed::ViewFeed(QWidget *parent, std::string configFile)
     refreshButton = new QPushButton("Refresh", this);
     connect(refreshButton, &QPushButton::clicked, this, &ViewFeed::handleButtonClick);
     
-    // container layout for tweets
-    tweetsLayout = new QVBoxLayout();
-    QWidget *tweetsContainer = new QWidget();
-    tweetsContainer->setLayout(tweetsLayout);
+    // list view for tweets
+    tweetsView = new QListView(this);
+    tweetsModel = new QStandardItemModel(this);
+    tweetsView->setModel(tweetsModel);
+    tweetsView->setUniformItemSizes(false);
+    tweetsView->setWordWrap(true);
+    tweetsView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    tweetsView->setSelectionMode(QAbstractItemView::NoSelection);
+    tweetsView->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+    tweetsView->setMinimumHeight(512);
+    tweetsView->setMinimumWidth(512);
+    tweetsView->setItemDelegate(new RichTextDelegate(this));
 
-    QScrollArea *scrollArea = new QScrollArea(this);
-    scrollArea->setWidget(tweetsContainer);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setMinimumHeight(512);
-    scrollArea->setMinimumWidth(512);
-
-    mainLayout->addWidget(scrollArea);
+    mainLayout->addWidget(tweetsView);
     mainLayout->addWidget(refreshButton);
     setLayout(mainLayout);
 
@@ -45,12 +50,7 @@ twtgui::ViewFeed::ViewFeed(QWidget *parent, std::string configFile)
 
 void twtgui::ViewFeed::refreshTimeline(std::string username, std::string twtxtFeedString)
 {
-    QLayoutItem *item;
-    while ((item = tweetsLayout->takeAt(0)) != nullptr)
-    {
-        delete item->widget();
-        delete item;
-    }
+    tweetsModel->clear();
 
     std::stringstream text(twtxtFeedString);
 
@@ -59,7 +59,7 @@ void twtgui::ViewFeed::refreshTimeline(std::string username, std::string twtxtFe
 
     while (std::getline(text, line))
     {
-        size_t tab = line.find('\t');   
+        size_t tab = line.find('\t');
         if (tab == std::string::npos)
             continue;
 
@@ -76,14 +76,12 @@ void twtgui::ViewFeed::refreshTimeline(std::string username, std::string twtxtFe
 
     for (const auto &tweet : tweets)
     {
-        QLabel *tweetLabel = new QLabel(
-            tweet.first.toString("MM-dd-yyyy hh:mm AP") + " <b>" + QString::fromStdString(username) + "</b>: " + QString::fromStdString(tweet.second),
-            this);
-        tweetLabel->setWordWrap(true);
-        tweetsLayout->insertWidget(0, tweetLabel);
+        QString text = tweet.first.toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(username) + "</b>: " + QString::fromStdString(tweet.second);
+        QStandardItem *item = new QStandardItem();
+        item->setData(text, Qt::DisplayRole);
+        item->setEditable(false);
+        tweetsModel->insertRow(0, item);
     }
-
-    tweetsLayout->addStretch();
 }
 
 void twtgui::ViewFeed::handleButtonClick()

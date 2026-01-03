@@ -7,10 +7,15 @@
 #include <QDateTime>
 #include <QTimeZone>
 #include <QVBoxLayout>
-#include <QLabel>
+#include <QListView>
+#include <QStandardItemModel>
+#include <QStandardItem>
+#include <QAbstractItemView>
+#include <QAbstractScrollArea>
 #include <QDebug>
 
 #include "SimpleIni.h"
+#include "../widgets/richtextdelegate.h"
 
 namespace twtgui {
 
@@ -22,20 +27,23 @@ twtgui::Timeline::Timeline(QWidget *parent, std::string configFile)
     // refresh button
     refreshButton = new QPushButton("Refresh", this);
     connect(refreshButton, &QPushButton::clicked, this, &Timeline::handleButtonClick);
-   
-    // container layout for tweets
-    tweetsLayout = new QVBoxLayout();
-    QWidget *tweetsContainer = new QWidget();
-    tweetsContainer->setLayout(tweetsLayout);
 
-    QScrollArea *scrollArea = new QScrollArea(this);
-    scrollArea->setWidget(tweetsContainer);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setMinimumHeight(512);
-    scrollArea->setMinimumWidth(512);
+    // list view for tweets
+    tweetsView = new QListView(this);
+    tweetsModel = new QStandardItemModel(this);
+    tweetsView->setModel(tweetsModel);
+    tweetsView->setUniformItemSizes(false);
+    tweetsView->setWordWrap(true);
+    tweetsView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    tweetsView->setSelectionMode(QAbstractItemView::NoSelection);
+    tweetsView->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+    tweetsView->setMinimumHeight(512);
+    tweetsView->setMinimumWidth(512);
 
-    mainLayout->addWidget(scrollArea);
+    // render items as rich text (HTML)
+    tweetsView->setItemDelegate(new RichTextDelegate(this));
+
+    mainLayout->addWidget(tweetsView);
     mainLayout->addWidget(refreshButton);
     setLayout(mainLayout);
 
@@ -50,21 +58,16 @@ void twtgui::Timeline::addTweet(std::string timestamp, std::string content)
 
     QDateTime dt = QDateTime::fromString(QString::fromStdString(timestamp), Qt::ISODate);
 
-    QLabel *tweetLabel = new QLabel(
-        dt.toString("MM-dd-yyyy hh:mm AP") + " <b>" + QString::fromStdString(username) + "</b>: " + QString::fromStdString(content),
-        this);
-    tweetLabel->setWordWrap(true);
-    tweetsLayout->insertWidget(0, tweetLabel);
-}
+    QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(username) + "</b>: " + QString::fromStdString(content);
+    QStandardItem *item = new QStandardItem();
+    item->setData(text, Qt::DisplayRole);
+    item->setEditable(false);
+    tweetsModel->insertRow(0, item);
+} 
 
 void twtgui::Timeline::refreshTimeline()
 {
-    QLayoutItem *item;
-    while ((item = tweetsLayout->takeAt(0)) != nullptr)
-    {
-        delete item->widget();
-        delete item;
-    }
+    tweetsModel->clear();
 
     CSimpleIniA config;
     config.LoadFile(configFile.c_str());
@@ -73,8 +76,7 @@ void twtgui::Timeline::refreshTimeline()
     std::ifstream file(config.GetValue("twtxt", "twtfile", ""));
     if (!file.is_open())
     {
-        QLabel *errorLabel = new QLabel("Could not open twtxt file.", this);
-        tweetsLayout->addWidget(errorLabel);
+        tweetsModel->appendRow(new QStandardItem("Could not open twtxt file."));
         return;
     }
 
@@ -101,14 +103,12 @@ void twtgui::Timeline::refreshTimeline()
 
     for (const auto &tweet : tweets)
     {
-        QLabel *tweetLabel = new QLabel(
-            tweet.first.toString("MM-dd-yyyy hh:mm AP") + " <b>" + QString::fromStdString(username) + "</b>: " + QString::fromStdString(tweet.second),
-            this);
-        tweetLabel->setWordWrap(true);
-        tweetsLayout->insertWidget(0, tweetLabel);
+        QString text = tweet.first.toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(username) + "</b>: " + QString::fromStdString(tweet.second);
+        QStandardItem *item = new QStandardItem();
+        item->setData(text, Qt::DisplayRole);
+        item->setEditable(false);
+        tweetsModel->insertRow(0, item);
     }
-
-    tweetsLayout->addStretch();
 }
 
 void twtgui::Timeline::handleButtonClick()

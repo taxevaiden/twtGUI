@@ -4,6 +4,8 @@
 #include <string>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <QListView>
+#include <QStandardItemModel>
 
 namespace twtgui {
 
@@ -20,7 +22,8 @@ class ViewFeed : public QWidget
         QPushButton* refreshButton;
         std::string configFile;
         QVBoxLayout* mainLayout;
-        QVBoxLayout* tweetsLayout;
+        QListView* tweetsView;
+        QStandardItemModel* tweetsModel;
 };
 
 } // namespace twtgui
