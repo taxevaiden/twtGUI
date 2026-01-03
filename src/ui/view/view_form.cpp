@@ -50,7 +50,7 @@ void twtgui::ViewForm::handleButtonClick()
 
     TwtDownloader downloader;
     std::string outString = "";
-    TwtDownloader::Result result = downloader.downloadToString(field->text().toStdString(), outString, 30, true, "cacert.pem");
+    TwtDownloader::Result result = downloader.downloadToString(field->text().toStdString(), outString, 30, true);
     if (!result.success) {
         qDebug() << "Download failed:" << QString::fromStdString(result.error);
         field->setText("Download failed: " + QString::fromStdString(result.error));
