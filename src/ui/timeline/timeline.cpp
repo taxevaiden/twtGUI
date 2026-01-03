@@ -42,6 +42,21 @@ twtgui::Timeline::Timeline(QWidget *parent, std::string configFile)
     refreshTimeline(); // initial load
 }
 
+void twtgui::Timeline::addTweet(std::string timestamp, std::string content)
+{
+    CSimpleIniA config;
+    config.LoadFile(configFile.c_str());
+    std::string username = config.GetValue("twtxt", "nick", "unknown");
+
+    QDateTime dt = QDateTime::fromString(QString::fromStdString(timestamp), Qt::ISODate);
+
+    QLabel *tweetLabel = new QLabel(
+        dt.toString("MM-dd-yyyy hh:mm AP") + " <b>" + QString::fromStdString(username) + "</b>: " + QString::fromStdString(content),
+        this);
+    tweetLabel->setWordWrap(true);
+    tweetsLayout->insertWidget(0, tweetLabel);
+}
+
 void twtgui::Timeline::refreshTimeline()
 {
     QLayoutItem *item;

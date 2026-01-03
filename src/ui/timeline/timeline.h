@@ -13,6 +13,7 @@ class Timeline : public QWidget
     public:
         Timeline(QWidget *parent = nullptr, std::string configFile = "");
         ~Timeline();
+        void addTweet(std::string timestamp, std::string content);
         void refreshTimeline();
     private slots:
         void handleButtonClick();

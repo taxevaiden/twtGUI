@@ -51,13 +51,18 @@ void twtgui::TweetForm::handleButtonClick()
         << "\t" 
         << field->text()
             .toStdString() 
-        << std::endl; 
-
-    field->clear();
+        << std::endl;  
 
     outFile.close();
 
-    timeline->refreshTimeline();
+    timeline->addTweet(
+        QDateTime::currentDateTime()
+            .toTimeZone(QTimeZone::systemTimeZone())
+            .toString(Qt::ISODate).toStdString(),
+        field->text().toStdString()
+    );
+
+    field->clear();
     return;
 }
 
