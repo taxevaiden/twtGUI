@@ -15,6 +15,7 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 file(GLOB MAIN_SOURCES
     src/*.cpp
     src/*.h
+    "include/*.h"
 )
 
 file(GLOB UI_SOURCES

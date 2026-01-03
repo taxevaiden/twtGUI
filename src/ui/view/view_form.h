@@ -14,13 +14,16 @@ class ViewForm : public QWidget
     Q_OBJECT
 
     public:
-        ViewForm(QWidget *parent = nullptr, ViewFeed* viewFeed = nullptr);
+        ViewForm(QWidget *parent = nullptr, std::string configFile = "", ViewFeed* viewFeed = nullptr);
         ~ViewForm();
     private slots:
-        void handleButtonClick();
+        void handleFollowButtonClick();
+        void handleViewButtonClick();
     private:
+        std::string configFile;
         ViewFeed* viewFeed;
         QLineEdit* field;
+        QPushButton* followButton;
         QPushButton* viewButton;
 };
 
