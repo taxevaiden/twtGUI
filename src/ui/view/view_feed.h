@@ -13,13 +13,15 @@
 #include <vector>
 #include <tuple>
 
+#include "SimpleIni.h"
+
 namespace twtgui {
 
 class ViewFeed : public QWidget
 {
     Q_OBJECT
     public:
-        ViewFeed(QWidget *parent = nullptr, std::string configFile = "");
+        ViewFeed(QWidget *parent = nullptr);
         ~ViewFeed();
         void refreshTimeline(std::string url = "");
     private slots:
@@ -29,9 +31,11 @@ class ViewFeed : public QWidget
         void onWorkerFinished();
     private:
         void stopWorker();
+        void addLinkTags(std::string &content);
 
         QLabel* statusLabel;
         QPushButton* refreshButton;
+        CSimpleIniA config;
         std::string configFile;
         QVBoxLayout* mainLayout;
         QListView* tweetsView;

@@ -8,12 +8,15 @@
 #include <QTimeZone>
 #include <QDebug>
 
+#include "../../config.h"
+
 namespace twtgui {
 
-twtgui::TweetForm::TweetForm(QWidget *parent, Timeline* timeline, std::string twtxtFile)
+twtgui::TweetForm::TweetForm(QWidget *parent, Timeline* timeline)
     : QWidget(parent)
 {
-    this->twtxtFile = twtxtFile;
+    this->config.LoadFile("config.ini");
+    this->twtxtFile = twtgui::GlobalConfig::config.GetValue("settings", "twtxt", "twtxt.txt");
     this->timeline = timeline;
     
     QHBoxLayout* containerLayout = new QHBoxLayout(this);

@@ -7,6 +7,8 @@
 #include <QLineEdit>
 #include <QPushButton>
 
+#include "SimpleIni.h"
+
 namespace twtgui {
 
 class TweetForm : public QWidget
@@ -14,12 +16,13 @@ class TweetForm : public QWidget
     Q_OBJECT
 
     public:
-        TweetForm(QWidget *parent = nullptr, Timeline* timeline = nullptr, std::string twtxtFile = "");
+        TweetForm(QWidget *parent = nullptr, Timeline* timeline = nullptr);
         ~TweetForm();
     private slots:
         void handleButtonClick();
     private:
         std::string twtxtFile;
+        CSimpleIniA config;
         QLineEdit* field;
         QPushButton* postButton;
         Timeline* timeline;

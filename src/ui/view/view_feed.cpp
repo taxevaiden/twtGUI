@@ -19,184 +19,256 @@
 #include "downloadworker.h"
 #include "../widgets/richtextdelegate.h"
 
+#include "../../config.h"
+
 #include <algorithm>
 
-namespace twtgui {
-
-twtgui::ViewFeed::ViewFeed(QWidget *parent, std::string configFile)
-    : QWidget(parent), configFile(configFile)
+namespace twtgui
 {
-    mainLayout = new QVBoxLayout(this);
+    void twtgui::ViewFeed::addLinkTags(std::string &content) {
+        std::stringstream ss(content);
+        std::vector<std::string> words;
+        std::string word;
 
-    // refresh button
-    refreshButton = new QPushButton("Refresh", this);
-    connect(refreshButton, &QPushButton::clicked, this, &ViewFeed::handleButtonClick);
-    
-    // list view for tweets
-    tweetsView = new QListView(this);
-    tweetsModel = new QStandardItemModel(this);
-    tweetsView->setModel(tweetsModel);
-    tweetsView->setUniformItemSizes(false);
-    tweetsView->setWordWrap(true);
-    tweetsView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    tweetsView->setSelectionMode(QAbstractItemView::NoSelection);
-    tweetsView->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
-    tweetsView->setMinimumHeight(512);
-    tweetsView->setMinimumWidth(512);
-    tweetsView->setItemDelegate(new RichTextDelegate(this));
+        std::string modifiedContent = "";
+        while (ss >> word)
+        {
+            words.push_back(word);
+        }
 
-    // status label
-    statusLabel = new QLabel(this);
+        for (const auto &w : words)
+        {
+            std::string modifiedWord = w;
+            std::size_t found_pos = w.find("http://");
+            if (found_pos != std::string::npos)
+            {
+                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
+            }
+            found_pos = w.find("https://");
+            if (found_pos != std::string::npos)
+            {
+                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
+            }
 
-    mainLayout->addWidget(tweetsView);
-    mainLayout->addWidget(refreshButton);
-    mainLayout->addWidget(statusLabel);
-    setLayout(mainLayout);
+            modifiedContent += modifiedWord;
+            modifiedContent += " ";
+        }
 
-    // initial load: try config's twturl
-    CSimpleIniA config;
-    config.LoadFile(configFile.c_str());
-    std::string initialUrl = config.GetValue("twtxt", "twturl", "");
-    if (!initialUrl.empty()) {
-        refreshTimeline(initialUrl);
+        content = modifiedContent;
     }
-}
 
-
-void twtgui::ViewFeed::onWorkerTweet(const QString &timestamp, const QString &content, const QString &source)
-{
-    QDateTime dt = QDateTime::fromString(timestamp, Qt::ISODate);
+    twtgui::ViewFeed::ViewFeed(QWidget *parent)
+        : QWidget(parent)
     {
-        std::lock_guard<std::mutex> lk(workerMutex);
-        collectedTweets.emplace_back(dt, content.toStdString(), source.toStdString());
+
+        mainLayout = new QVBoxLayout(this);
+
+        // refresh button
+        refreshButton = new QPushButton("Refresh", this);
+        connect(refreshButton, &QPushButton::clicked, this, &ViewFeed::handleButtonClick);
+
+        // list view for tweets
+        tweetsView = new QListView(this);
+        tweetsModel = new QStandardItemModel(this);
+        tweetsView->setModel(tweetsModel);
+        tweetsView->setUniformItemSizes(false);
+        tweetsView->setWordWrap(true);
+        tweetsView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        tweetsView->setSelectionMode(QAbstractItemView::NoSelection);
+        tweetsView->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+        tweetsView->setViewMode(QListView::ListMode);
+        tweetsView->setMinimumHeight(512);
+        tweetsView->setMinimumWidth(512);
+        tweetsView->setItemDelegate(new RichTextDelegate(this));
+        tweetsView->setAutoFillBackground(true);
+        QPalette pal = tweetsView->palette();
+        pal.setColor(QPalette::Base, pal.color(QPalette::Window));
+        tweetsView->setPalette(pal);
+
+        // status label
+        statusLabel = new QLabel(this);
+
+        mainLayout->addWidget(tweetsView);
+        mainLayout->addWidget(refreshButton);
+        mainLayout->addWidget(statusLabel);
+        setLayout(mainLayout);
+
+        // initial load: try config's twturl
+        std::string initialUrl = twtgui::GlobalConfig::config.GetValue("settings", "twturl", "");
+        if (!initialUrl.empty())
+        {
+            refreshTimeline(initialUrl);
+        }
     }
 
-    // Add an immediate item for responsiveness; we'll rebuild sorted view on finished
-    QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + source + "</b>: " + content;
-    QStandardItem *item = new QStandardItem();
-    item->setData(text, Qt::DisplayRole);
-    item->setEditable(false);
-    tweetsModel->insertRow(0, item);
-}
-
-void twtgui::ViewFeed::onWorkerStatus(const QString &statusMsg)
-{
-    statusLabel->setText(statusMsg);
-}
-
-void twtgui::ViewFeed::onWorkerFinished()
-{
-    // rebuild sorted view from collectedTweets
-    std::vector<std::tuple<QDateTime, std::string, std::string>> local;
+    void twtgui::ViewFeed::onWorkerTweet(const QString &timestamp, const QString &content, const QString &source)
     {
-        std::lock_guard<std::mutex> lk(workerMutex);
-        local = collectedTweets;
-        collectedTweets.clear();
+        QDateTime dt = QDateTime::fromString(timestamp, Qt::ISODate);
+        {
+            std::lock_guard<std::mutex> lk(workerMutex);
+            collectedTweets.emplace_back(dt, content.toStdString(), source.toStdString());
+        }
+
+        // // Add an immediate item for responsiveness; we'll rebuild sorted view on finished
+        // QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + source + "</b>: " + content;
+        // QStandardItem *item = new QStandardItem();
+        // item->setData(text, Qt::DisplayRole);
+        // item->setEditable(false);
+        // tweetsModel->insertRow(0, item);
     }
 
-    // clear and rebuild in chronological order
-    tweetsModel->clear();
-    std::sort(local.begin(), local.end(), [](const auto &a, const auto &b) { return std::get<0>(a) < std::get<0>(b); });
-    for (const auto &t : local) {
-        QString text = std::get<0>(t).toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(std::get<2>(t)) + "</b>: " + QString::fromStdString(std::get<1>(t));
-        QStandardItem *item = new QStandardItem();
-        item->setData(text, Qt::DisplayRole);
-        item->setEditable(false);
-        tweetsModel->insertRow(0, item);
+    void twtgui::ViewFeed::onWorkerStatus(const QString &statusMsg)
+    {
+        statusLabel->setText(statusMsg);
     }
 
-    statusLabel->setText("Successfully loaded tweets");
+    void twtgui::ViewFeed::onWorkerFinished()
+    {
+        // rebuild sorted view from collectedTweets
+        std::vector<std::tuple<QDateTime, std::string, std::string>> local;
+        {
+            std::lock_guard<std::mutex> lk(workerMutex);
+            local = collectedTweets;
+            collectedTweets.clear();
+        }
 
-    // cleanup worker/thread
-    if (workerObj) {
-        workerObj->deleteLater();
-        workerObj = nullptr;
-    }
-    if (workerThread) {
-        // thread will quit when worker destroyed (we connected destroyed->quit)
-        workerThread = nullptr;
-    }
-}
+        // clear and rebuild in chronological order
+        // tweetsModel->clear();
+        std::sort(local.begin(), local.end(), [](const auto &a, const auto &b)
+                  { return std::get<0>(a) < std::get<0>(b); });
+        for (const auto &t : local)
+        {
 
-void twtgui::ViewFeed::stopWorker()
-{
-    if (workerObj && workerThread) {
-        QMetaObject::invokeMethod(workerObj, "cancel", Qt::QueuedConnection);
-        workerObj = nullptr;
-        workerThread = nullptr;
-    }
-}
+            std::string content = std::get<1>(t);
+            addLinkTags(content);
 
-void twtgui::ViewFeed::refreshTimeline(std::string url)
-{
-    stopWorker();
+            QString text = std::get<0>(t).toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(std::get<2>(t)) + "</b>: " + QString::fromStdString(content);
+            QStandardItem *item = new QStandardItem();
+            item->setData(text, Qt::DisplayRole);
+            item->setEditable(false);
+            tweetsModel->insertRow(0, item);
+        }
 
-    if (url.empty()) {
-        tweetsModel->appendRow(new QStandardItem("No URL to refresh."));
-        statusLabel->setText("No URL to refresh.");
-        return;
-    }
+        statusLabel->setText("Successfully loaded tweets");
 
-    // store last used URL so Refresh button can re-download it
-    lastUrl = url;
-
-    statusLabel->setText(QString("Downloading from %1 ...").arg(QString::fromStdString(url)));
-
-    // derive a display name from the URL (host part) for the username
-    std::vector<std::string> parts;
-    std::istringstream ss(url);
-    std::string seg;
-    while (std::getline(ss, seg, '/'))
-        parts.push_back(seg);
-
-    std::string username = parts.size() > 2 ? parts[2] : "";
-
-    tweetsModel->clear();
-
-    // start worker in background
-    QThread *thread = new QThread(this);
-    auto *worker = new twtgui::DownloadWorker();
-    worker->moveToThread(thread);
-
-    workerObj = worker;
-    workerThread = thread;
-
-    connect(thread, &QThread::started, [worker, url, username]() {
-        QMetaObject::invokeMethod(worker, "start", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(url)), Q_ARG(QString, QString::fromStdString(username)));
-    });
-
-    connect(worker, &twtgui::DownloadWorker::tweetReady, this, &ViewFeed::onWorkerTweet);
-    connect(worker, &twtgui::DownloadWorker::status, this, &ViewFeed::onWorkerStatus);
-    connect(worker, &twtgui::DownloadWorker::error, this, [this](const QString &err){ statusLabel->setText(err); });
-    connect(worker, &twtgui::DownloadWorker::finished, this, &ViewFeed::onWorkerFinished);
-
-    connect(worker, &QObject::destroyed, thread, &QThread::quit);
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-
-    thread->start();
-}
-
-void twtgui::ViewFeed::handleButtonClick()
-{
-    qDebug() << "Refresh button clicked!";
-
-    if (!lastUrl.empty()) {
-        refreshTimeline(lastUrl);
-        return;
+        // cleanup worker/thread
+        if (workerObj)
+        {
+            workerObj->deleteLater();
+            workerObj = nullptr;
+        }
+        if (workerThread)
+        {
+            // thread will quit when worker destroyed (we connected destroyed->quit)
+            workerThread = nullptr;
+        }
     }
 
-    // fallback to config
-    CSimpleIniA config;
-    config.LoadFile(configFile.c_str());
-    std::string configUrl = config.GetValue("twtxt", "twturl", "");
-    if (!configUrl.empty()) {
-        refreshTimeline(configUrl);
-        return;
+    void twtgui::ViewFeed::stopWorker()
+    {
+        if (workerObj && workerThread)
+        {
+            QMetaObject::invokeMethod(workerObj, "cancel", Qt::QueuedConnection);
+            workerObj = nullptr;
+            workerThread = nullptr;
+        }
     }
 
-    tweetsModel->appendRow(new QStandardItem("No URL configured to refresh."));
-}
+    void twtgui::ViewFeed::refreshTimeline(std::string url)
+    {
+        stopWorker();
 
-twtgui::ViewFeed::~ViewFeed() {}
+        if (url.empty())
+        {
+            tweetsModel->appendRow(new QStandardItem("No URL to refresh."));
+            statusLabel->setText("No URL to refresh.");
+            return;
+        }
+
+        // store last used URL so Refresh button can re-download it
+        lastUrl = url;
+
+        statusLabel->setText(QString("Downloading from %1 ...").arg(QString::fromStdString(url)));
+
+        // determine username: prefer the name (key) in the "following" section whose value equals
+        // this URL; if not found, fall back to using the host part of the URL
+        auto hostFromUrl = [](const std::string &u) -> std::string
+        {
+            if (u.empty())
+                return "";
+            size_t pos = u.find("://");
+            size_t start = (pos == std::string::npos) ? 0 : pos + 3;
+            size_t end = u.find('/', start);
+            return u.substr(start, end == std::string::npos ? std::string::npos : end - start);
+        };
+
+        std::string username = "";
+        // search existing following keys for a matching value
+        CSimpleIniA::TNamesDepend keys;
+        twtgui::GlobalConfig::config.GetAllKeys("following", keys);
+        for (CSimpleIniA::TNamesDepend::const_iterator it = keys.begin(); it != keys.end(); ++it)
+        {
+            const char *key = it->pItem;
+            const char *value = twtgui::GlobalConfig::config.GetValue("following", key, nullptr);
+            if (value != nullptr && url == value)
+            {
+                username = key;
+                break;
+            }
+        }
+
+        // fallback to host part if no key found
+        if (username.empty())
+        {
+            username = hostFromUrl(url);
+        }
+
+        tweetsModel->clear();
+
+        // start worker in background
+        QThread *thread = new QThread(this);
+        auto *worker = new twtgui::DownloadWorker();
+        worker->moveToThread(thread);
+
+        workerObj = worker;
+        workerThread = thread;
+
+        connect(thread, &QThread::started, [worker, url, username]()
+                { QMetaObject::invokeMethod(worker, "start", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(url)), Q_ARG(QString, QString::fromStdString(username))); });
+
+        connect(worker, &twtgui::DownloadWorker::tweetReady, this, &ViewFeed::onWorkerTweet);
+        connect(worker, &twtgui::DownloadWorker::status, this, &ViewFeed::onWorkerStatus);
+        connect(worker, &twtgui::DownloadWorker::error, this, [this](const QString &err)
+                { statusLabel->setText(err); });
+        connect(worker, &twtgui::DownloadWorker::finished, this, &ViewFeed::onWorkerFinished);
+
+        connect(worker, &QObject::destroyed, thread, &QThread::quit);
+        connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+        thread->start();
+    }
+
+    void twtgui::ViewFeed::handleButtonClick()
+    {
+        qDebug() << "Refresh button clicked!";
+
+        if (!lastUrl.empty())
+        {
+            refreshTimeline(lastUrl);
+            return;
+        }
+
+        // fallback to config
+        std::string configUrl = twtgui::GlobalConfig::config.GetValue("twtxt", "twturl", "");
+        if (!configUrl.empty())
+        {
+            refreshTimeline(configUrl);
+            return;
+        }
+
+        tweetsModel->appendRow(new QStandardItem("No URL configured to refresh."));
+    }
+
+    twtgui::ViewFeed::~ViewFeed() {}
 
 } // namespace twtgui

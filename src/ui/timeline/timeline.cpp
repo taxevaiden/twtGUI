@@ -23,15 +23,70 @@
 #include "SimpleIni.h"
 #include "../widgets/richtextdelegate.h"
 
+#include "../../config.h"
+
 #include <algorithm>
+
+#include <random>
 
 namespace twtgui
 {
-
-
-    twtgui::Timeline::Timeline(QWidget *parent, std::string configFile)
-        : QWidget(parent), configFile(configFile)
+    void twtgui::Timeline::addLinkTags(std::string &content)
     {
+        std::stringstream ss(content);
+        std::vector<std::string> words;
+        std::string word;
+
+        std::string modifiedContent = "";
+        while (ss >> word)
+        {
+            words.push_back(word);
+        }
+
+        for (const auto &w : words)
+        {
+            std::string modifiedWord = w;
+            std::size_t found_pos = w.find("http://");
+            if (found_pos != std::string::npos)
+            {
+                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
+            }
+            found_pos = w.find("https://");
+            if (found_pos != std::string::npos)
+            {
+                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
+            }
+
+            modifiedContent += modifiedWord;
+            modifiedContent += " ";
+        }
+
+        content = modifiedContent;
+    }
+
+    unsigned int wordToUint(std::string word)
+    {
+        unsigned int hash = 0;
+        for (char c : word)
+        {
+            // A simple (non-cryptographic) way to combine character values
+            hash = (hash * 31) + static_cast<unsigned char>(c);
+        }
+        return hash;
+    }
+
+    std::string generateColorFromWord(std::string word)
+    {
+        std::mt19937 engine(wordToUint(word));
+        std::uniform_int_distribution<int> dist(1, 255);
+
+        return "rgb(" + std::to_string(dist(engine)) + "," + std::to_string(dist(engine)) + "," + std::to_string(dist(engine)) + ");";
+    }
+
+    twtgui::Timeline::Timeline(QWidget *parent)
+        : QWidget(parent)
+    {
+        this->config.LoadFile("config.ini");
         mainLayout = new QVBoxLayout(this);
 
         // refresh button
@@ -47,9 +102,14 @@ namespace twtgui
         tweetsView->setEditTriggers(QAbstractItemView::NoEditTriggers);
         tweetsView->setSelectionMode(QAbstractItemView::NoSelection);
         tweetsView->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+        tweetsView->setViewMode(QListView::ListMode);
         tweetsView->setMinimumHeight(512);
         tweetsView->setMinimumWidth(512);
         tweetsView->setItemDelegate(new RichTextDelegate(this));
+        tweetsView->setAutoFillBackground(true);
+        QPalette pal = tweetsView->palette();
+        pal.setColor(QPalette::Base, pal.color(QPalette::Window));
+        tweetsView->setPalette(pal);
 
         // status label
         statusLabel = new QLabel(this);
@@ -64,13 +124,18 @@ namespace twtgui
     void twtgui::Timeline::stopWorkers()
     {
         std::lock_guard<std::mutex> lk(workerMutex);
-        for (QObject *w : workers) {
+        for (QObject *w : workers)
+        {
             // DownloadWorker has cancel() slot
-            if (w) QMetaObject::invokeMethod(w, "cancel", Qt::QueuedConnection);
-            if (w) w->deleteLater();
+            if (w)
+                QMetaObject::invokeMethod(w, "cancel", Qt::QueuedConnection);
+            if (w)
+                w->deleteLater();
         }
-        for (QThread *t : workerThreads) {
-            if (t) t->quit();
+        for (QThread *t : workerThreads)
+        {
+            if (t)
+                t->quit();
         }
         workers.clear();
         workerThreads.clear();
@@ -89,13 +154,6 @@ namespace twtgui
             t.source = source.toStdString();
             collectedTweets.push_back(t);
         }
-
-        // add a temporary item to show progress; we'll rebuild sorted view when all workers finish
-        QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + source + "</b>: " + content;
-        QStandardItem *item = new QStandardItem();
-        item->setData(text, Qt::DisplayRole);
-        item->setEditable(false);
-        tweetsModel->insertRow(0, item);
     }
 
     void twtgui::Timeline::onWorkerStatus(const QString &statusMsg)
@@ -111,11 +169,14 @@ namespace twtgui
         {
             std::lock_guard<std::mutex> lk(workerMutex);
             // find sender in workers list
-            for (size_t i = 0; i < workers.size(); ++i) {
-                if (workers[i] == s) {
+            for (size_t i = 0; i < workers.size(); ++i)
+            {
+                if (workers[i] == s)
+                {
                     // schedule deletion
                     workers[i]->deleteLater();
-                    if (i < workerThreads.size()) {
+                    if (i < workerThreads.size())
+                    {
                         threadToQuit = workerThreads[i];
                         workerThreads[i]->quit();
                         workerThreads[i] = nullptr;
@@ -129,7 +190,8 @@ namespace twtgui
             qDebug() << "Timeline::onWorkerFinished pendingWorkers now" << pendingWorkers;
         }
 
-        if (pendingWorkers == 0) {
+        if (pendingWorkers == 0)
+        {
             qDebug() << "Timeline::onWorkerFinished rebuilding view";
             // rebuild sorted view
             std::vector<Tweet> local;
@@ -139,16 +201,22 @@ namespace twtgui
                 collectedTweets.clear();
             }
 
-            std::sort(local.begin(), local.end(), [](const Tweet &a, const Tweet &b){
+            std::sort(local.begin(), local.end(), [](const Tweet &a, const Tweet &b)
+                      {
                 QDateTime ad = QDateTime::fromString(QString::fromStdString(a.timestamp), Qt::ISODate);
                 QDateTime bd = QDateTime::fromString(QString::fromStdString(b.timestamp), Qt::ISODate);
-                return ad < bd;
-            });
+                return ad < bd; });
 
-            tweetsModel->clear();
-            for (const auto &tweet : local) {
+            // tweetsModel->clear();
+            for (const auto &tweet : local)
+            {
+                std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? generateColorFromWord(tweet.source) : "white";
                 QDateTime dt = QDateTime::fromString(QString::fromStdString(tweet.timestamp), Qt::ISODate);
-                QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(tweet.source) + "</b>: " + QString::fromStdString(tweet.content);
+
+                std::string content = tweet.content;
+                addLinkTags(content);
+
+                QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='color: " + QString::fromStdString(color) + "'><b>" + QString::fromStdString(tweet.source) + "</b></span>: " + QString::fromStdString(content);
                 QStandardItem *item = new QStandardItem();
                 item->setData(text, Qt::DisplayRole);
                 item->setEditable(false);
@@ -159,18 +227,20 @@ namespace twtgui
         }
     }
 
-void twtgui::Timeline::addTweet(std::string timestamp, std::string content, std::string source)
-{
-    // if a source wasn't provided, fall back to configured nick
-    if (source.empty()) {
-        CSimpleIniA config;
-        config.LoadFile(configFile.c_str());
-        source = config.GetValue("twtxt", "nick", "unknown");
-    }
+    void twtgui::Timeline::addTweet(std::string timestamp, std::string content, std::string source)
+    {
+        // if a source wasn't provided, fall back to configured nick
+        if (source.empty())
+        {
+            source = twtgui::GlobalConfig::config.GetValue("settings", "nick", "unknown");
+        }
 
-    QDateTime dt = QDateTime::fromString(QString::fromStdString(timestamp), Qt::ISODate);
+        std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? generateColorFromWord(source) : "white;";
+        QDateTime dt = QDateTime::fromString(QString::fromStdString(timestamp), Qt::ISODate);
 
-    QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(source) + "</b>: " + QString::fromStdString(content);
+        addLinkTags(content);
+
+        QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='color: " + QString::fromStdString(color) + "'><b>" + QString::fromStdString(source) + "</b></span>: " + QString::fromStdString(content);
         QStandardItem *item = new QStandardItem();
         item->setData(text, Qt::DisplayRole);
         item->setEditable(false);
@@ -179,112 +249,126 @@ void twtgui::Timeline::addTweet(std::string timestamp, std::string content, std:
 
     void twtgui::Timeline::refreshTimeline()
     {
-    // stop any in-flight workers
-    stopWorkers();
+        // stop any in-flight workers
+        stopWorkers();
 
-    tweetsModel->clear();
-    collectedTweets.clear();
+        tweetsModel->clear();
+        collectedTweets.clear();
 
-    CSimpleIniA config;
-    config.LoadFile(configFile.c_str());
-    std::string username = config.GetValue("twtxt", "nick", "unknown");
+        std::string username = twtgui::GlobalConfig::config.GetValue("settings", "nick", "unknown");
 
-    // add tweets from twtxt file (synchronous; local file reads are cheap)
-    std::ifstream file(config.GetValue("twtxt", "twtfile", ""));
-    if (!file.is_open())
-    {
-        tweetsModel->appendRow(new QStandardItem("Could not open twtxt file."));
-    }
-    else
-    {
-        std::string line;
-        while (std::getline(file, line))
+        // add tweets from twtxt file (synchronous; local file reads are cheap)
+        std::ifstream file(twtgui::GlobalConfig::config.GetValue("settings", "twtxt", ""));
+        if (!file.is_open())
         {
-            size_t tab = line.find('\t');
-            if (tab == std::string::npos)
+            tweetsModel->appendRow(new QStandardItem("Could not open twtxt file."));
+        }
+        else
+        {
+            std::string line;
+            while (std::getline(file, line))
+            {
+                size_t tab = line.find('\t');
+                if (tab == std::string::npos)
+                    continue;
+
+                std::string timestamp = line.substr(0, tab);
+                std::string value = line.substr(tab + 1);
+
+                Tweet t;
+                t.timestamp = timestamp;
+                t.content = value;
+                t.source = username;
+                collectedTweets.push_back(t);
+            }
+            file.close();
+        }
+
+        // spawn worker for each following feed (downloads/parsing happen in background)
+        CSimpleIniA::TNamesDepend keys;
+        twtgui::GlobalConfig::config.GetAllKeys("following", keys);
+        CSimpleIniA::TNamesDepend::const_iterator it;
+
+        if (keys.empty())
+        {
+            // display the existing collected (local) tweets if the user hasn't followed anyone
+            std::sort(collectedTweets.begin(), collectedTweets.end(), [](const auto &a, const auto &b)
+                      {
+                        QDateTime ad = QDateTime::fromString(QString::fromStdString(a.timestamp), Qt::ISODate);
+                        QDateTime bd = QDateTime::fromString(QString::fromStdString(b.timestamp), Qt::ISODate);
+                        return ad < bd; });
+            for (const auto &tweet : collectedTweets)
+            {
+                std::mt19937 engine(wordToUint(tweet.source));
+                std::uniform_int_distribution<int> dist(1, 255);
+                QDateTime dt = QDateTime::fromString(QString::fromStdString(tweet.timestamp), Qt::ISODate);
+
+                std::string content = tweet.content;
+                addLinkTags(content);
+
+                QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='color: rgb(" + QString::number(dist(engine)) + "," + QString::number(dist(engine)) + "," + QString::number(dist(engine)) + ")'><b>" + QString::fromStdString(tweet.source) + "</b></span>: " + QString::fromStdString(content);
+                QStandardItem *item = new QStandardItem();
+                item->setData(text, Qt::DisplayRole);
+                item->setEditable(false);
+                tweetsModel->insertRow(0, item);
+            }
+
+            return;
+        }
+
+        for (it = keys.begin(); it != keys.end(); ++it)
+        {
+            const char *key = it->pItem;
+            const char *value = twtgui::GlobalConfig::config.GetValue("following", key, nullptr);
+            if (value == nullptr)
                 continue;
 
-            std::string timestamp = line.substr(0, tab);
-            std::string value = line.substr(tab + 1);
+            // derive a source name: prefer the config key if present, otherwise derive host from URL
+            std::string sourceName = key ? std::string(key) : std::string();
+            if (sourceName.empty())
+            {
+                std::istringstream ssUrl(value);
+                std::string part;
+                std::vector<std::string> parts;
+                while (std::getline(ssUrl, part, '/'))
+                    parts.push_back(part);
+                if (parts.size() > 2)
+                    sourceName = parts[2];
+            }
 
-            Tweet t;
-            t.timestamp = timestamp;
-            t.content = value;
-            t.source = username;
-            collectedTweets.push_back(t);
-        }
-        file.close();
-    }
+            // create worker and thread
+            QThread *thread = new QThread(this);
+            auto *worker = new twtgui::DownloadWorker();
+            worker->moveToThread(thread);
 
-    // display the existing collected (local) tweets now
-    std::sort(collectedTweets.begin(), collectedTweets.end(), [](const auto &a, const auto &b){
-        QDateTime ad = QDateTime::fromString(QString::fromStdString(a.timestamp), Qt::ISODate);
-        QDateTime bd = QDateTime::fromString(QString::fromStdString(b.timestamp), Qt::ISODate);
-        return ad < bd;
-    });
-    for (const auto &tweet : collectedTweets) {
-        QDateTime dt = QDateTime::fromString(QString::fromStdString(tweet.timestamp), Qt::ISODate);
-        QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(tweet.source) + "</b>: " + QString::fromStdString(tweet.content);
-        QStandardItem *item = new QStandardItem();
-        item->setData(text, Qt::DisplayRole);
-        item->setEditable(false);
-        tweetsModel->insertRow(0, item);
-    }
+            // keep track so we can cancel if needed
+            {
+                std::lock_guard<std::mutex> lk(workerMutex);
+                workerThreads.push_back(thread);
+                workers.push_back(worker);
+                pendingWorkers++;
+                qDebug() << "pendingWorkers now" << pendingWorkers;
+            }
 
-    // spawn worker for each following feed (downloads/parsing happen in background)
-    CSimpleIniA::TNamesDepend keys;
-    config.GetAllKeys("following", keys);
-    CSimpleIniA::TNamesDepend::const_iterator it;
+            // capture URL as an std::string so it stays valid after this function returns
+            std::string urlStr = value;
+            qDebug() << "Starting worker for" << QString::fromStdString(urlStr) << "(source" << QString::fromStdString(sourceName) << ")";
 
-    for (it = keys.begin(); it != keys.end(); ++it)
-    {
-        const char *key = it->pItem;
-        const char *value = config.GetValue("following", key, nullptr);
-        if (value == nullptr)
-            continue;
-
-        // derive a source name: prefer the config key if present, otherwise derive host from URL
-        std::string sourceName = key ? std::string(key) : std::string();
-        if (sourceName.empty()) {
-            std::istringstream ssUrl(value);
-            std::string part;
-            std::vector<std::string> parts;
-            while (std::getline(ssUrl, part, '/')) parts.push_back(part);
-            if (parts.size() > 2) sourceName = parts[2];
-        }
-
-        // create worker and thread
-        QThread *thread = new QThread(this);
-        auto *worker = new twtgui::DownloadWorker();
-        worker->moveToThread(thread);
-
-        // keep track so we can cancel if needed
-        {
-            std::lock_guard<std::mutex> lk(workerMutex);
-            workerThreads.push_back(thread);
-            workers.push_back(worker);
-            pendingWorkers++;
-            qDebug() << "pendingWorkers now" << pendingWorkers;
-        }
-
-        // capture URL as an std::string so it stays valid after this function returns
-        std::string urlStr = value;
-        qDebug() << "Starting worker for" << QString::fromStdString(urlStr) << "(source" << QString::fromStdString(sourceName) << ")";
-
-        connect(thread, &QThread::started, [worker, urlStr, sourceName]() {
+            connect(thread, &QThread::started, [worker, urlStr, sourceName]()
+                    {
             // call start on the worker (runs in worker thread)
-            QMetaObject::invokeMethod(worker, "start", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(urlStr)), Q_ARG(QString, QString::fromStdString(sourceName)));
-        });
+            QMetaObject::invokeMethod(worker, "start", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(urlStr)), Q_ARG(QString, QString::fromStdString(sourceName))); });
 
-        connect(worker, &twtgui::DownloadWorker::tweetReady, this, &Timeline::onWorkerTweet, Qt::QueuedConnection);
-        connect(worker, &twtgui::DownloadWorker::status, this, &Timeline::onWorkerStatus, Qt::QueuedConnection);
-        connect(worker, &twtgui::DownloadWorker::error, this, [this](const QString &err){ statusLabel->setText(err); }, Qt::QueuedConnection);
-        connect(worker, &twtgui::DownloadWorker::finished, this, &Timeline::onWorkerFinished, Qt::QueuedConnection);
+            connect(worker, &twtgui::DownloadWorker::tweetReady, this, &Timeline::onWorkerTweet, Qt::QueuedConnection);
+            connect(worker, &twtgui::DownloadWorker::status, this, &Timeline::onWorkerStatus, Qt::QueuedConnection);
+            connect(worker, &twtgui::DownloadWorker::error, this, [this](const QString &err)
+                    { statusLabel->setText(err); }, Qt::QueuedConnection);
+            connect(worker, &twtgui::DownloadWorker::finished, this, &Timeline::onWorkerFinished, Qt::QueuedConnection);
 
-        connect(worker, &QObject::destroyed, thread, &QThread::quit, Qt::QueuedConnection);
-        connect(thread, &QThread::finished, thread, &QObject::deleteLater, Qt::QueuedConnection);
+            connect(worker, &QObject::destroyed, thread, &QThread::quit, Qt::QueuedConnection);
+            connect(thread, &QThread::finished, thread, &QObject::deleteLater, Qt::QueuedConnection);
 
-        thread->start();
+            thread->start();
         }
     }
 
@@ -295,5 +379,7 @@ void twtgui::Timeline::addTweet(std::string timestamp, std::string content, std:
     }
 
     twtgui::Timeline::~Timeline() {}
+
+    // for the random colors. turns a word/string into a seed (unsigned int)
 
 } // namespace twtgui

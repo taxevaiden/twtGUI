@@ -15,6 +15,8 @@
 #include <mutex>
 #include <vector>
 
+#include "SimpleIni.h"
+
 namespace twtgui {
 
 struct Tweet {
@@ -27,7 +29,7 @@ class Timeline : public QWidget
 {
     Q_OBJECT
     public:
-        Timeline(QWidget *parent = nullptr, std::string configFile = "");
+        Timeline(QWidget *parent = nullptr);
         ~Timeline();
         void addTweet(std::string timestamp, std::string content, std::string source = "");
         void refreshTimeline();
@@ -39,9 +41,11 @@ class Timeline : public QWidget
         void onWorkerFinished();
     private:
         void stopWorkers();
+        void addLinkTags(std::string &content);
 
         QLabel* statusLabel;
         QPushButton* refreshButton;
+        CSimpleIniA config;
         std::string configFile;
         QVBoxLayout* mainLayout;
         QListView* tweetsView;
