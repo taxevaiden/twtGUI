@@ -1,0 +1,59 @@
+name: Build twtGUI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ---------- install Qt ----------
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.6.0
+          modules: qtwidgets
+          cache: true
+
+      # ---------- install build deps ----------
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y cmake ninja-build
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install cmake ninja -y
+
+      # ---------- configure ----------
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -G Ninja
+
+      # ---------- build ----------
+      - name: Build
+        run: |
+          cmake --build build --config Release
+
+      # ---------- upload artifact ----------
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: twtGUI-${{ runner.os }}
+          path: |
+            build/twtGUI*
