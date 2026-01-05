@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
     twtgui::SettingsPanel *settingsPanel = new twtgui::SettingsPanel(centralWidget);
     settingsPanel->addSetting("Nickname", "Your nickname that will be displayed.", "nick", twtgui::SettingType::SettingType_Text);
     settingsPanel->addSetting("twtxt.txt", "Path to the twtxt.txt file.", "twtxt", twtgui::SettingType::SettingType_FilePath);
-    settingsPanel->addSetting("twtxt.txt URL", "URL to your public twtxt.txt.", "twturl", twtgui::SettingType::SettingType_FilePath);
+    settingsPanel->addSetting("twtxt.txt URL", "URL to your public twtxt.txt.", "twturl", twtgui::SettingType::SettingType_Text);
 
     // pre/post-script will be implemented soon but i cannot be bothered to do it now i'm so tired
     // settingsPanel->addSetting("Pre-script", "Path to a script that executes BEFORE tweeting.", "pre-script", twtgui::SettingType::SettingType_FilePath);
