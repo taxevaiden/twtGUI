@@ -8,26 +8,30 @@ in my terminal (and i also got too lazy to further develop the old version)
 
 made with C++ and Qt
 
-## requirements
-
-- windows
-- a twtxt config file and a twtxt.txt (you can get both of these if you install twtxt)
-
 ## features
 
-right now, you can post tweets and see tweets from other people.
+- post tweets 
+- view timeline
+- view other twtxt.txts
+- manage who you follow
+- tweak some settings
+    - nickname
+    - twtxt.txt filepath
+    - url to your public twtxt.txt
+    - toggle whether the names in the time will be colored or not
 
 ## compatibility
 
-the client assumes you're on windows so it might not work for those who are on macOS/linux. works perfectly fine on windows though!
+this client has been verified to work on windows. macOS/linux support haven't been verified yet, but they should work fine if all the dependencies are installed.
 
 ## compiling
 
-you'll need 
+### requirements
 - Qt6 installed (i think)
+- libcurl (i installed this by just downloading the binaries for curl. it has all the stuff you need for libcurl)
 - CMake
 - Ninja
-- some c++ compiler like g++ (included with Qt6 installation at least for windows)
+- c++ compiler (mingw-g++ for windows, g++ should work on linux)
 
 clone the repo, then cd into it and do
 
