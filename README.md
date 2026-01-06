@@ -40,7 +40,7 @@ clone the repo, then cd into it and do
 
 now do 
 
-    cmake -S .. -B .
+    cmake -S .. -B . -G Ninja
 
 this will generate the build files in `build/`. now you can build!
 
