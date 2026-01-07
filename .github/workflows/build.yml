@@ -29,10 +29,10 @@ jobs:
         uses: jurplel/install-qt-action@v3
         with:
           aqtversion: '==3.1.*'
-          version: '6.6.0'
+          version: '6.10.1'
           host: 'linux'
           target: 'desktop'
-          arch: 'gcc_64'
+          arch: 'linux_gcc_64'
           tools: 'tools_cmake tools_ninja'
 
       - name: Set reusable strings
