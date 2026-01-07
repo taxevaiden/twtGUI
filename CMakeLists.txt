@@ -14,7 +14,7 @@ find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
-# find_package(CURL REQUIRED)
+find_package(CURL REQUIRED)
 
 file(GLOB MAIN_SOURCES
     src/*.cpp
@@ -29,9 +29,9 @@ file(GLOB UI_SOURCES
     src/ui/*/*.h
 )
 
-file(GLOB CURL_LIBS
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/*.a
-)
+# file(GLOB CURL_LIBS
+#     ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/*.a
+# )
 
 set(PROJECT_SOURCES
     ${MAIN_SOURCES}
@@ -62,7 +62,7 @@ target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/c
 target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include/nghttp3)
 target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include/ngtcp2)
 target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include/openssl)
-target_link_libraries(twtGUI PRIVATE ${CURL_LIBS})
+# target_link_libraries(twtGUI PRIVATE ${CURL_LIBS})
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
