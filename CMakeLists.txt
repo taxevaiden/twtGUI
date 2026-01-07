@@ -29,10 +29,6 @@ file(GLOB UI_SOURCES
     src/ui/*/*.h
 )
 
-# file(GLOB CURL_LIBS
-#     ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/*.a
-# )
-
 set(PROJECT_SOURCES
     ${MAIN_SOURCES}
     ${UI_SOURCES}
@@ -51,20 +47,11 @@ elseif(UNIX AND NOT APPLE)
     target_link_options(${PROJECT_NAME} PRIVATE "-static-libgcc" "-static-libstdc++")
 endif()
 
-target_link_libraries(twtGUI PRIVATE CURL::libcurl)
 
 target_link_libraries(twtGUI PRIVATE Qt${QT_VERSION_MAJOR}::Core)
 target_link_libraries(twtGUI PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(twtGUI PRIVATE CURL::libcurl)
 target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include)
-target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include/brotli)
-target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include/curl)
-target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include/nghttp2)
-target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include/nghttp3)
-target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include/ngtcp2)
-target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/curl/include/openssl)
-# target_link_libraries(twtGUI PRIVATE ${CURL_LIBS})
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

@@ -27,11 +27,13 @@ this client has been verified to work on windows. macOS/linux support haven't be
 ## compiling
 
 ### requirements
-- Qt6 installed (i think)
-- libcurl (i installed this by just downloading the binaries for curl. it has all the stuff you need for libcurl)
+- Qt6 installed
+- libcurl installed (you can install this by just having curl i think? if not install libcurl through your package manager)
 - CMake
 - Ninja
 - c++ compiler (mingw-g++ for windows, g++ should work on linux)
+
+i installed all of these through msys2, so you can install all of these in msys2 if you're on windows.
 
 clone the repo, then cd into it and do
 
