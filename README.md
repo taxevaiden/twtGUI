@@ -31,7 +31,7 @@ this client has been verified to work on windows. macOS/linux support haven't be
 - libcurl installed (you can install this by just having curl i think? if not install libcurl through your package manager)
 - CMake
 - Ninja
-- c++ compiler (mingw-g++ for windows, g++ should work on linux)
+- c++ compiler (mingw-g++ for windows, g++ should work on linux, i have no idea about macOS)
 
 i installed all of these through msys2, so you can install all of these in msys2 if you're on windows.
 

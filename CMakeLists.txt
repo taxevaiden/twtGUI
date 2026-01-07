@@ -41,12 +41,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     )
 endif()
 
-if(MINGW)
-    target_link_options(${PROJECT_NAME} PRIVATE "-static" "-static-libgcc" "-static-libstdc++")
-elseif(UNIX AND NOT APPLE)
-    target_link_options(${PROJECT_NAME} PRIVATE "-static-libgcc" "-static-libstdc++")
-endif()
-
+target_link_options(${PROJECT_NAME} PRIVATE "-static-libgcc" "-static-libstdc++")
 
 target_link_libraries(twtGUI PRIVATE Qt${QT_VERSION_MAJOR}::Core)
 target_link_libraries(twtGUI PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
