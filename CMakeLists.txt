@@ -51,6 +51,8 @@ elseif(UNIX AND NOT APPLE)
     target_link_options(${PROJECT_NAME} PRIVATE "-static-libgcc" "-static-libstdc++")
 endif()
 
+target_link_libraries(twtGUI PRIVATE CURL::libcurl)
+
 target_link_libraries(twtGUI PRIVATE Qt${QT_VERSION_MAJOR}::Core)
 target_link_libraries(twtGUI PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_include_directories(twtGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
