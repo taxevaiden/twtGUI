@@ -88,12 +88,16 @@ jobs:
 
       - name: Copy libcurl
         run: |
-          cp ${{ steps.msys2.outputs.msys2-location }}/mingw64/bin/libcurl-4.dll release/
+          MSYS2_ROOT="${{ steps.msys2.outputs.msys2-location }}"
+          MSYS2_ROOT_UNIX=$(cygpath "$MSYS2_ROOT")
+          cp "$MSYS2_ROOT_UNIX/mingw64/bin/libcurl-4.dll" release/
 
       - name: Copy other files
         run: |
-          cp ${{ github.workspace }}/LICENSE release/ 
-          cp ${{ github.workspace }}/README.md release/ 
+          MSYS2_ROOT="${{ github.workspace }}"
+          MSYS2_ROOT_UNIX=$(cygpath "$MSYS2_ROOT")
+          cp "$MSYS2_ROOT_UNIX/LICENSE" release/ 
+          cp "$MSYS2_ROOT_UNIX/README.md" release/ 
       
       - name: Create zip
         run: |
