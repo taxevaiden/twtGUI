@@ -79,7 +79,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
-          files: "${{ steps.strings.outputs.build-output-dir }}/twtGUI.exe"
+          files: "build/twtGUI.exe"
           token: ${{ secrets.RELEASE_TOKEN }}
 
   build-linux:
