@@ -98,14 +98,12 @@ jobs:
       - name: Create zip
         run: |
           7z a twtGUI-windows-x64.zip release/*
-      
-      
 
       - name: Upload Windows build to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
-          files: "build/twtGUI.exe"
+          files: "twtGUI-windows-x64.zip"
           token: ${{ secrets.RELEASE_TOKEN }}
 
   build-linux:
