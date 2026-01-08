@@ -87,18 +87,12 @@ jobs:
           windeployqt6 --release --no-translations --no-system-d3d-compiler release/twtGUI.exe
 
       - name: Copy libcurl
-        run: |
-          MSYS2_ROOT="${{ steps.msys2.outputs.msys2-location }}"
-          MSYS2_ROOT_UNIX=$(cygpath "$MSYS2_ROOT")
-          cp "$MSYS2_ROOT_UNIX/mingw64/bin/libcurl-4.dll" release/
+        run: cp /mingw64/bin/libcurl-4.dll release/
 
       - name: Copy other files
         run: |
-          MSYS2_ROOT="${{ github.workspace }}"
-          MSYS2_ROOT_UNIX=$(cygpath "$MSYS2_ROOT")
-          cp "$MSYS2_ROOT_UNIX/LICENSE" release/ 
-          cp "$MSYS2_ROOT_UNIX/README.md" release/ 
-      
+          cp LICENSE README.md release/
+
       - name: Create zip
         run: |
           7z a twtGUI-windows-x64.zip release/*
