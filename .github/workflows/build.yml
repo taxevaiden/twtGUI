@@ -20,13 +20,12 @@ jobs:
 
       - name: Create GitHub Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
         with:
           tag_name: ${{ steps.set-tag.outputs.tag }}
           name: Release ${{ steps.set-tag.outputs.tag }}
           body: "Automated build release"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows:
     runs-on: windows-latest
@@ -79,12 +78,11 @@ jobs:
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }}
 
       - name: Upload Windows build to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: "${{ steps.strings.outputs.build-output-dir }}/twtGUI.exe"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux:
     runs-on: ubuntu-latest
@@ -126,9 +124,8 @@ jobs:
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }}
 
       - name: Upload Linux build to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: "${{ steps.strings.outputs.build-output-dir }}/twtGUI"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
