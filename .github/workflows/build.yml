@@ -38,17 +38,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install MSYS2, libcurl, Qt, and compilers
+        id: msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: true
           install: >-
             base-devel 
-            curl
+            mingw-w64-x86_64-curl
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-qt6-base
+            p7zip
 
       # - name: Install Qt
       #   uses: jurplel/install-qt-action@v3
@@ -74,6 +76,30 @@ jobs:
       - name: Build
         # Build your program with the given configuration.
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }}
+
+      - name: Prepare release dir
+        run: |
+          mkdir -p release
+          cp ${{ steps.strings.outputs.build-output-dir }}/twtGUI.exe release/
+
+      - name: Deploy Qt
+        run: |
+          windeployqt6 --release --no-translations --no-system-d3d-compiler release/twtGUI.exe
+
+      - name: Copy libcurl
+        run: |
+          cp ${{ steps.msys2.outputs.msys2-location }}/mingw64/bin/libcurl-4.dll release/
+
+      - name: Copy other files
+        run: |
+          cp ${{ github.workspace }}/LICENSE release/ 
+          cp ${{ github.workspace }}/README.md release/ 
+      
+      - name: Create zip
+        run: |
+          7z a twtGUI-windows-x64.zip release/*
+      
+      
 
       - name: Upload Windows build to release
         uses: softprops/action-gh-release@v2
