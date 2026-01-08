@@ -2,11 +2,8 @@ name: Build & Release
 
 on:
   push:
-    branches: [ "master" ]
     tags:
       - "v*.*.*.*"
-  pull_request:
-    branches: [ "master" ]
   workflow_dispatch:
 
 jobs:
@@ -78,9 +75,6 @@ jobs:
       - name: Build
         # Build your program with the given configuration.
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }}
-
-      - name: List build directory
-        run: dir ${{ steps.strings.outputs.build-output-dir }} /s
 
       - name: Upload Windows build to release
         uses: softprops/action-gh-release@v2
