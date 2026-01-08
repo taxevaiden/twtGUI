@@ -11,10 +11,6 @@ jobs:
   build-windows:
     runs-on: windows-latest
 
-    strategy:
-      matrix:
-        msystem: [MINGW64] # Use MINGW64 for 64-bit MinGW environment
-
     defaults:
       run:
         shell: msys2 {0}
@@ -26,11 +22,11 @@ jobs:
       - name: Install MSYS2, libcurl, and compilers (Windows)
         uses: msys2/setup-msys2@v2
         with:
+          msystem: MINGW64
           update: true
           install: >-
             base-devel 
             curl
-          pacboy: >-
             mingw-w64-x86_64-toolchain
             mingw-w664-x86_64-cmake
             mingw-w664-x86_64-ninja
