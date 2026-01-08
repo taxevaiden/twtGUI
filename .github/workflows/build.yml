@@ -19,7 +19,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install MSYS2, libcurl, and compilers (Windows)
+      - name: Install MSYS2, libcurl, Qt, and compilers
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -30,16 +30,17 @@ jobs:
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-qt6-base
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v3
-        with:
-          aqtversion: '==3.1.*'
-          version: '6.10.1'
-          host: 'windows'
-          target: 'desktop'
-          arch: 'win64_mingw'
-          # tools: 'tools_cmake tools_ninja'
+      # - name: Install Qt
+      #   uses: jurplel/install-qt-action@v3
+      #   with:
+      #     aqtversion: '==3.1.*'
+      #     version: '6.10.1'
+      #     host: 'windows'
+      #     target: 'desktop'
+      #     arch: 'win64_mingw'
+      #     # tools: 'tools_cmake tools_ninja'
 
       - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
