@@ -21,7 +21,6 @@ jobs:
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
         with:
           tag_name: ${{ steps.set-tag.outputs.tag }}
           name: Release ${{ steps.set-tag.outputs.tag }}
@@ -79,7 +78,6 @@ jobs:
 
       - name: Upload Windows build to release
         uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: "${{ steps.strings.outputs.build-output-dir }}/twtGUI.exe"
@@ -125,7 +123,6 @@ jobs:
 
       - name: Upload Linux build to release
         uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: "${{ steps.strings.outputs.build-output-dir }}/twtGUI"
