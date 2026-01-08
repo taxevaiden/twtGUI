@@ -8,6 +8,11 @@ in my terminal (and i also got too lazy to further develop the old version)
 
 made with C++ and Qt
 
+you can download the latest release but ummmm it's just the executable so you will need
+
+- Qt 6.7 (lol) or above installed
+- curl installed
+
 ## features
 
 - post tweets 
