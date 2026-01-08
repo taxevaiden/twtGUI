@@ -8,18 +8,61 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
+  build-windows:
+    runs-on: windows-latest
 
     strategy:
       matrix:
-        os: [ubuntu-latest]
-        build_type: [Release]
-        c_compiler: [gcc]
-        include:
-        - os: ubuntu-latest
-          c_compiler: gcc
-          cpp_compiler: g++
+        msystem: [MINGW64] # Use MINGW64 for 64-bit MinGW environment
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install MSYS2, libcurl, and compilers (Windows)
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            base-devel 
+            curl
+          pacboy: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w664-x86_64-cmake
+            mingw-w664-x86_64-ninja
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          aqtversion: '==3.1.*'
+          version: '6.10.1'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_mingw'
+          # tools: 'tools_cmake tools_ninja'
+
+      - name: Set reusable strings
+      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+        id: strings
+        run: |
+          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+          
+      - name: Configure CMake
+        # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+        # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+        run: |
+          cmake -S "${{ github.workspace }}" -B "${{ steps.strings.outputs.build-output-dir }}" -G Ninja -DCMAKE_BUILD_TYPE=Release
+          
+      - name: Build
+        # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config Release
+
+  build-linux:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -35,7 +78,7 @@ jobs:
           arch: 'linux_gcc_64'
           tools: 'tools_cmake tools_ninja'
 
-      - name: Install libcurl headers and libraries
+      - name: Install libcurl headers and libraries (Linux)
         run: |
           sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
 
@@ -50,8 +93,8 @@ jobs:
         # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
         # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
         run: |
-          cmake -S "${{ github.workspace }}" -B "${{ steps.strings.outputs.build-output-dir }}" -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          cmake -S "${{ github.workspace }}" -B "${{ steps.strings.outputs.build-output-dir }}" -G Ninja -DCMAKE_BUILD_TYPE=Release
           
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config Release

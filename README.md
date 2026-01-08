@@ -33,7 +33,7 @@ this client has been verified to work on windows. macOS/linux support haven't be
 - Ninja
 - c++ compiler (mingw-g++ for windows, g++ should work on linux, i have no idea about macOS)
 
-i installed all of these through msys2, so you can install all of these in msys2 if you're on windows.
+if you're on windows, you will need to install all of these using msys2
 
 clone the repo, then cd into it and do
 

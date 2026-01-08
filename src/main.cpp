@@ -101,6 +101,7 @@ int main(int argc, char *argv[])
             twtgui::GlobalConfig::config.SetValue("settings", "nick", newNick.c_str());
             twtgui::GlobalConfig::config.SetValue("settings", "twtxt", newTwtxt.c_str());
             twtgui::GlobalConfig::config.SetValue("settings", "twturl", newUrl.c_str());
+            twtgui::GlobalConfig::config.SetValue("settings", "colored_names", "1");
             twtgui::GlobalConfig::config.SaveFile("config.ini");
 
             SI_Error rc = twtgui::GlobalConfig::config.SaveFile("config.ini");
