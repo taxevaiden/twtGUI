@@ -8,11 +8,6 @@ in my terminal (and i also got too lazy to further develop the old version)
 
 made with C++ and Qt
 
-you can download the latest release but ummmm it's just the executable so you will need
-
-- Qt 6.7 (lol) or above installed
-- curl installed
-
 ## features
 
 - post tweets 
@@ -27,7 +22,18 @@ you can download the latest release but ummmm it's just the executable so you wi
 
 ## compatibility
 
-this client has been verified to work on windows. macOS/linux support haven't been verified yet, but they should work fine if all the dependencies are installed.
+this client has been verified to work on windows and linux. macOS hasn't been verified yet but it should work if all the dependencies are installed correctly.
+
+## installing
+
+you can download the latest version [here.](https://github.com/taxevaiden/twtGUI/releases)
+
+`twtGUI-windows-x64` has all of the dependencies installed by default and should work just fine, however `twtGUI` (the linux build) is different
+
+for linux, you will need
+
+- Qt 6.7 (lol) or above installed
+- curl installed
 
 ## compiling
 
