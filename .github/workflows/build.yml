@@ -89,6 +89,49 @@ jobs:
       - name: Copy libcurl
         run: cp /mingw64/bin/libcurl-4.dll release/
 
+      - name: Copy MinGW DLLs
+        # List of required MinGW DLLs
+        run: |
+          MINGW_DLLS=(
+            libwinpthread-1.dll
+            libcurl-4.dll
+            libgcc_s_seh-1.dll
+            libstdc++-6.dll
+            libmd4c.dll
+            libpng16-16.dll
+            libfreetype-6.dll
+            zlib1.dll
+            libharfbuzz-0.dll
+            libnghttp3-9.dll
+            libngtcp2-16.dll
+            libngtcp2_crypto_ossl-0.dll
+            libbrotlidec.dll
+            libidn2-0.dll
+            libb2-1.dll
+            libdouble-conversion.dll
+            libicuin78.dll
+            libicuuc78.dll
+            libpcre2-16-0.dll
+            libzstd.dll
+            libcrypto-3-x64.dll
+            libpsl-5.dll
+            libnghttp2-14.dll
+            libssh2-1.dll
+            libbz2-1.dll
+            libgraphite2.dll
+            libssl-3-x64.dll
+            libiconv-2.dll
+            libbrotlicommon.dll
+            libicudt78.dll
+            libintl-8.dll
+            libglib-2.0-0.dll
+            libunistring-5.dll
+            libpcre2-8-0.dll
+          )
+          for dll in "${MINGW_DLLS[@]}"; do
+              cp /mingw64/bin/$dll release/
+          done
+
       - name: Copy other files
         run: |
           cp LICENSE README.md release/
