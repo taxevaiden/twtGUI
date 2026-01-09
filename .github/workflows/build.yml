@@ -140,13 +140,13 @@ jobs:
 
       - name: Create zip
         run: |
-          7z a twtGUI-windows-x64.zip release/*
+          7z a "twtGUI-windows-x64-${{ needs.create-release.outputs.tag }}.zip" release/*
 
       - name: Upload Windows build to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
-          files: "twtGUI-windows-x64.zip"
+          files: "twtGUI-windows-x64-${{ needs.create-release.outputs.tag }}.zip"
           token: ${{ secrets.RELEASE_TOKEN }}
 
   build-linux:
@@ -188,9 +188,22 @@ jobs:
         # Build your program with the given configuration.
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }}
 
+      - name: Prepare release dir
+        run: |
+          mkdir -p release
+          cp ${{ steps.strings.outputs.build-output-dir }}/twtGUI release/
+      
+      - name: Copy other files
+        run: |
+          cp LICENSE README.md release/
+
+      - name: Create zip
+        run: |
+          zip -r "twtGUI-linux-x64-${{ needs.create-release.outputs.tag }}.zip" release
+
       - name: Upload Linux build to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
-          files: "${{ steps.strings.outputs.build-output-dir }}/twtGUI"
+          files: "twtGUI-linux-x64-${{ needs.create-release.outputs.tag }}.zip"
           token: ${{ secrets.RELEASE_TOKEN }}
