@@ -161,6 +161,8 @@ int main(int argc, char *argv[])
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setMinimumWidth(512);
     scrollArea->setMinimumHeight(512);
+    scrollArea->setAutoFillBackground(false);
+    followingContainer->setAutoFillBackground(false);
 
     CSimpleIniA::TNamesDepend keys;
 

@@ -80,10 +80,6 @@ namespace twtgui
         tweetsView->setMinimumHeight(512);
         tweetsView->setMinimumWidth(512);
         tweetsView->setItemDelegate(new RichTextDelegate(this));
-        tweetsView->setAutoFillBackground(true);
-        QPalette pal = tweetsView->palette();
-        pal.setColor(QPalette::Base, pal.color(QPalette::Window));
-        tweetsView->setPalette(pal);
 
         // status label
         statusLabel = new QLabel(this);

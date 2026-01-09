@@ -106,10 +106,6 @@ namespace twtgui
         tweetsView->setMinimumHeight(512);
         tweetsView->setMinimumWidth(512);
         tweetsView->setItemDelegate(new RichTextDelegate(this));
-        tweetsView->setAutoFillBackground(true);
-        QPalette pal = tweetsView->palette();
-        pal.setColor(QPalette::Base, pal.color(QPalette::Window));
-        tweetsView->setPalette(pal);
 
         // status label
         statusLabel = new QLabel(this);
@@ -210,7 +206,11 @@ namespace twtgui
             // tweetsModel->clear();
             for (const auto &tweet : local)
             {
-                std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? generateColorFromWord(tweet.source) : "white";
+                QPalette pal = tweetsView->palette();
+                QColor qcolor = pal.color(QPalette::Text);
+                int r, g, b;
+                qcolor.getRgb(&r, &g, &b);
+                std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? generateColorFromWord(tweet.source) : ("rgb(" + std::to_string(r) + "," + std::to_string(g) + "," + std::to_string(b) + ");");
                 QDateTime dt = QDateTime::fromString(QString::fromStdString(tweet.timestamp), Qt::ISODate);
 
                 std::string content = tweet.content;
@@ -235,7 +235,11 @@ namespace twtgui
             source = twtgui::GlobalConfig::config.GetValue("settings", "nick", "unknown");
         }
 
-        std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? generateColorFromWord(source) : "white;";
+        QPalette pal = tweetsView->palette();
+        QColor qcolor = pal.color(QPalette::Text);
+        int r, g, b;
+        qcolor.getRgb(&r, &g, &b);
+        std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? generateColorFromWord(source) : ("rgb(" + std::to_string(r) + "," + std::to_string(g) + "," + std::to_string(b) + ");");
         QDateTime dt = QDateTime::fromString(QString::fromStdString(timestamp), Qt::ISODate);
 
         addLinkTags(content);
