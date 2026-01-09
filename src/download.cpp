@@ -19,7 +19,7 @@ twtgui::TwtDownloader::TwtDownloader()
     {
         std::ofstream file("cacert.pem");
 
-        // cacert.pem content from https://curl.se/ca/cacert.pem as of 2024-06-01
+        // cacert.pem content from https://curl.se/ca/cacert.pem as of 2025-12-02
         file << R"(##
 ## Bundle of CA Root Certificates
 ##

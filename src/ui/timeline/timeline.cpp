@@ -206,17 +206,13 @@ namespace twtgui
             // tweetsModel->clear();
             for (const auto &tweet : local)
             {
-                QPalette pal = tweetsView->palette();
-                QColor qcolor = pal.color(QPalette::Text);
-                int r, g, b;
-                qcolor.getRgb(&r, &g, &b);
-                std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? generateColorFromWord(tweet.source) : ("rgb(" + std::to_string(r) + "," + std::to_string(g) + "," + std::to_string(b) + ");");
+                std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? "color: " + generateColorFromWord(tweet.source) : "";
                 QDateTime dt = QDateTime::fromString(QString::fromStdString(tweet.timestamp), Qt::ISODate);
 
                 std::string content = tweet.content;
                 addLinkTags(content);
 
-                QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='color: " + QString::fromStdString(color) + "'><b>" + QString::fromStdString(tweet.source) + "</b></span>: " + QString::fromStdString(content);
+                QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='" + QString::fromStdString(color) + "'><b>" + QString::fromStdString(tweet.source) + "</b></span>: " + QString::fromStdString(content);
                 QStandardItem *item = new QStandardItem();
                 item->setData(text, Qt::DisplayRole);
                 item->setEditable(false);
@@ -235,11 +231,7 @@ namespace twtgui
             source = twtgui::GlobalConfig::config.GetValue("settings", "nick", "unknown");
         }
 
-        QPalette pal = tweetsView->palette();
-        QColor qcolor = pal.color(QPalette::Text);
-        int r, g, b;
-        qcolor.getRgb(&r, &g, &b);
-        std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? generateColorFromWord(source) : ("rgb(" + std::to_string(r) + "," + std::to_string(g) + "," + std::to_string(b) + ");");
+        std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? "color: " + generateColorFromWord(source) : "";
         QDateTime dt = QDateTime::fromString(QString::fromStdString(timestamp), Qt::ISODate);
 
         addLinkTags(content);
