@@ -31,47 +31,14 @@
 
 namespace twtgui
 {
-    void twtgui::Timeline::addLinkTags(std::string &content)
+    unsigned int wordToUint(const std::string &word)
     {
-        std::stringstream ss(content);
-        std::vector<std::string> words;
-        std::string word;
+        const unsigned int FNV_prime = 16777619u;
+        unsigned int hash = 2166136261u; // FNV offset basis
 
-        std::string modifiedContent = "";
-        while (ss >> word)
-        {
-            words.push_back(word);
-        }
+        for (unsigned char c : word)
+            hash = (hash ^ c) * FNV_prime;
 
-        for (const auto &w : words)
-        {
-            std::string modifiedWord = w;
-            std::size_t found_pos = w.find("http://");
-            if (found_pos != std::string::npos)
-            {
-                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
-            }
-            found_pos = w.find("https://");
-            if (found_pos != std::string::npos)
-            {
-                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
-            }
-
-            modifiedContent += modifiedWord;
-            modifiedContent += " ";
-        }
-
-        content = modifiedContent;
-    }
-
-    unsigned int wordToUint(std::string word)
-    {
-        unsigned int hash = 0;
-        for (char c : word)
-        {
-            // A simple (non-cryptographic) way to combine character values
-            hash = (hash * 31) + static_cast<unsigned char>(c);
-        }
         return hash;
     }
 
@@ -108,7 +75,7 @@ namespace twtgui
     std::string generateColorFromWord(std::string word)
     {
         std::mt19937 engine(wordToUint(word));
-        std::uniform_int_distribution<int> dist(1, 255);
+        std::uniform_int_distribution<int> dist(0, 255);
 
         int r = dist(engine);
         int g = dist(engine);
@@ -123,20 +90,20 @@ namespace twtgui
         float contrast = (L2 > L1) ? (L2 + 0.05f) / (L1 + 0.05f) : (L1 + 0.05f) / (L2 + 0.05f);
         float adjust = 1.0f - (contrast - 1) / 20.0f;
 
-            if (L2 > L1)
-            {
-                // decrease brightness
-                r = static_cast<uint8_t>(std::max(0, r - static_cast<uint8_t>(128 * adjust)));
-                g = static_cast<uint8_t>(std::max(0, g - static_cast<uint8_t>(128 * adjust)));
-                b = static_cast<uint8_t>(std::max(0, b - static_cast<uint8_t>(128 * adjust)));
-            }
-            else
-            {
-                // increase brightness
-                r = static_cast<uint8_t>(std::min(255, r + static_cast<uint8_t>(128 * adjust)));
-                g = static_cast<uint8_t>(std::min(255, g + static_cast<uint8_t>(128 * adjust)));
-                b = static_cast<uint8_t>(std::min(255, b + static_cast<uint8_t>(128 * adjust)));
-            }
+        if (L2 > L1)
+        {
+            // decrease brightness
+            r = static_cast<uint8_t>(std::max(0, r - static_cast<uint8_t>(128 * adjust)));
+            g = static_cast<uint8_t>(std::max(0, g - static_cast<uint8_t>(128 * adjust)));
+            b = static_cast<uint8_t>(std::max(0, b - static_cast<uint8_t>(128 * adjust)));
+        }
+        else
+        {
+            // increase brightness
+            r = static_cast<uint8_t>(std::min(255, r + static_cast<uint8_t>(128 * adjust)));
+            g = static_cast<uint8_t>(std::min(255, g + static_cast<uint8_t>(128 * adjust)));
+            b = static_cast<uint8_t>(std::min(255, b + static_cast<uint8_t>(128 * adjust)));
+        }
 
         return "rgb(" + std::to_string(r) + "," + std::to_string(g) + "," + std::to_string(b) + ");";
     }
@@ -164,6 +131,7 @@ namespace twtgui
         tweetsView->setMinimumHeight(512);
         tweetsView->setMinimumWidth(512);
         tweetsView->setItemDelegate(new RichTextDelegate(this));
+        tweetsView->viewport()->installEventFilter(this);
 
         // status label
         statusLabel = new QLabel(this);
@@ -267,10 +235,7 @@ namespace twtgui
                 std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? "color: " + generateColorFromWord(tweet.source) : "";
                 QDateTime dt = QDateTime::fromString(QString::fromStdString(tweet.timestamp), Qt::ISODate);
 
-                std::string content = tweet.content;
-                addLinkTags(content);
-
-                QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='" + QString::fromStdString(color) + "'><b>" + QString::fromStdString(tweet.source) + "</b></span>: " + QString::fromStdString(content);
+                QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='" + QString::fromStdString(color) + "'><b>" + QString::fromStdString(tweet.source) + "</b></span>: " + QString::fromStdString(tweet.content);
                 QStandardItem *item = new QStandardItem();
                 item->setData(text, Qt::DisplayRole);
                 item->setEditable(false);
@@ -291,8 +256,6 @@ namespace twtgui
 
         std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? "color: " + generateColorFromWord(source) : "";
         QDateTime dt = QDateTime::fromString(QString::fromStdString(timestamp), Qt::ISODate);
-
-        addLinkTags(content);
 
         QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='color: " + QString::fromStdString(color) + "'><b>" + QString::fromStdString(source) + "</b></span>: " + QString::fromStdString(content);
         QStandardItem *item = new QStandardItem();

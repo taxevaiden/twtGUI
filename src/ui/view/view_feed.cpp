@@ -25,38 +25,6 @@
 
 namespace twtgui
 {
-    void twtgui::ViewFeed::addLinkTags(std::string &content) {
-        std::stringstream ss(content);
-        std::vector<std::string> words;
-        std::string word;
-
-        std::string modifiedContent = "";
-        while (ss >> word)
-        {
-            words.push_back(word);
-        }
-
-        for (const auto &w : words)
-        {
-            std::string modifiedWord = w;
-            std::size_t found_pos = w.find("http://");
-            if (found_pos != std::string::npos)
-            {
-                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
-            }
-            found_pos = w.find("https://");
-            if (found_pos != std::string::npos)
-            {
-                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
-            }
-
-            modifiedContent += modifiedWord;
-            modifiedContent += " ";
-        }
-
-        content = modifiedContent;
-    }
-
     twtgui::ViewFeed::ViewFeed(QWidget *parent)
         : QWidget(parent)
     {
@@ -80,6 +48,7 @@ namespace twtgui
         tweetsView->setMinimumHeight(512);
         tweetsView->setMinimumWidth(512);
         tweetsView->setItemDelegate(new RichTextDelegate(this));
+        tweetsView->viewport()->installEventFilter(this);
 
         // status label
         statusLabel = new QLabel(this);
@@ -134,11 +103,7 @@ namespace twtgui
                   { return std::get<0>(a) < std::get<0>(b); });
         for (const auto &t : local)
         {
-
-            std::string content = std::get<1>(t);
-            addLinkTags(content);
-
-            QString text = std::get<0>(t).toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(std::get<2>(t)) + "</b>: " + QString::fromStdString(content);
+            QString text = std::get<0>(t).toString("MM-dd-yyyy hh:mm AP") + " " + "<b>" + QString::fromStdString(std::get<2>(t)) + "</b>: " + QString::fromStdString(std::get<1>(t));
             QStandardItem *item = new QStandardItem();
             item->setData(text, Qt::DisplayRole);
             item->setEditable(false);

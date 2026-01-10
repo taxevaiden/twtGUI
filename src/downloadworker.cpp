@@ -11,6 +11,38 @@
 namespace twtgui
 {
 
+    void addLinkTags(std::string &content) {
+        std::stringstream ss(content);
+        std::vector<std::string> words;
+        std::string word;
+
+        std::string modifiedContent = "";
+        while (ss >> word)
+        {
+            words.push_back(word);
+        }
+
+        for (const auto &w : words)
+        {
+            std::string modifiedWord = w;
+            std::size_t found_pos = w.find("http://");
+            if (found_pos != std::string::npos)
+            {
+                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
+            }
+            found_pos = w.find("https://");
+            if (found_pos != std::string::npos)
+            {
+                modifiedWord = "<a href='" + w + "'>" + w + "</a>";
+            }
+
+            modifiedContent += modifiedWord;
+            modifiedContent += " ";
+        }
+
+        content = modifiedContent;
+    }
+
     DownloadWorker::DownloadWorker(QObject *parent)
         : QObject(parent), m_cancelled(false)
     {
@@ -31,10 +63,12 @@ namespace twtgui
             emit finished();
             return;
         }
-
+        
+        // check if cache directory exists, create one if it doesn't
         if (!std::filesystem::is_directory("cache"))
             std::filesystem::create_directory("cache");
 
+        // determine file name from url
         auto hostFromUrl = [](const std::string &u) -> std::string
         {
             if (u.empty())
@@ -48,6 +82,7 @@ namespace twtgui
         std::string outPath = "cache/" + hostFromUrl(url.toStdString()) + ".txt";
         TwtDownloader downloader;
 
+        // download if the feed isn't in cache OR the feed on the internet has changed
         if (!std::filesystem::exists(outPath) || downloader.remoteChanged(url.toStdString(), outPath))
         {
             emit status(QString("Downloading %1 ...").arg(url));
@@ -85,6 +120,7 @@ namespace twtgui
             if (!content.empty() && content.back() == '\r')
                 content.pop_back();
 
+            addLinkTags(content);
             // qDebug() << "DownloadWorker parsed tweet:" << QString::fromStdString(timestamp) << "::" << QString::fromStdString(content);
             emit tweetReady(QString::fromStdString(timestamp), QString::fromStdString(content), source);
         }

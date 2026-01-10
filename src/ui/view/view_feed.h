@@ -31,7 +31,6 @@ class ViewFeed : public QWidget
         void onWorkerFinished();
     private:
         void stopWorker();
-        void addLinkTags(std::string &content);
 
         QLabel* statusLabel;
         QPushButton* refreshButton;

@@ -42,7 +42,6 @@ class Timeline : public QWidget
         void onWorkerFinished();
         private:
         void stopWorkers();
-        void addLinkTags(std::string &content);
 
         QLabel* statusLabel;
         QPushButton* refreshButton;
