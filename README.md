@@ -28,7 +28,7 @@ you can download the latest version [here.](https://github.com/taxevaiden/twtGUI
 
 for linux, you will need
 
-- Qt 6.7 (lol) or above installed (i think you may have to manually compile it yourself as from my experience `apt` has an older version of qt6)
+- Qt 6.10 installed (i think you may have to manually compile it yourself as from my experience `apt` has an older version of qt6)
 - curl installed
 
 ### compatibility
@@ -38,7 +38,7 @@ this client has been verified to work on windows and linux. macOS hasn't been ve
 ## compiling
 
 ### prerequisites
-- Qt 6.7 or above installed
+- Qt 6.10
 - libcurl installed (you can install this by just having curl i think? if not install libcurl through your package manager)
 - CMake
 - Ninja
