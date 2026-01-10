@@ -209,7 +209,6 @@ int main(int argc, char *argv[])
         followingContainerLayout->addStretch();
     });
 
-
     followingLayout->addWidget(scrollArea);
     followingLayout->addWidget(refreshButton);
 

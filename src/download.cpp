@@ -4,11 +4,14 @@
 #include <fstream>
 
 #include <curl/curl.h>
+#include <curl/easy.h>
 #include <cstdio>
 #include <utility>
 
 #include <cstring>
 #include <cstdlib>
+#include <unordered_map>
+#include <algorithm>
 
 std::once_flag twtgui::TwtDownloader::s_curlInitFlag;
 
@@ -3688,13 +3691,185 @@ twtgui::TwtDownloader::Result twtgui::TwtDownloader::downloadToString(const std:
     return res;
 }
 
-bool twtgui::TwtDownloader::downloadToFileSimple(const std::string &url, const std::string &outputPath, std::string &outError, long timeoutSeconds, bool verifyPeer)
+// read entire file into string (returns empty string on failure)
+static std::string slurp(const std::string &path)
 {
-    Result r = downloadToFile(url, outputPath, timeoutSeconds, verifyPeer);
-    if (!r.success)
+    std::ifstream ifs(path, std::ios::binary);
+    if (!ifs)
+        return {};
+    return std::string(std::istreambuf_iterator<char>(ifs),
+                       std::istreambuf_iterator<char>());
+}
+
+// trim helpers
+static inline std::string ltrim(const std::string &s)
+{
+    size_t i = 0;
+    while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i])))
+        ++i;
+    return s.substr(i);
+}
+static inline std::string rtrim(const std::string &s)
+{
+    if (s.empty())
+        return s;
+    size_t i = s.size();
+    while (i > 0 && std::isspace(static_cast<unsigned char>(s[i - 1])))
+        --i;
+    return s.substr(0, i);
+}
+
+static inline std::string trim(const std::string &s) { return rtrim(ltrim(s)); }
+
+static inline std::string to_lower(std::string s)
+{
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c)
+                   { return static_cast<char>(std::tolower(c)); });
+    return s;
+}
+
+// header callback: userdata is expected to be a pointer to
+// std::unordered_map<std::string, std::string>
+static size_t header_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    size_t bytes = size * nmemb;
+    if (bytes == 0 || userdata == nullptr)
+        return bytes;
+
+    std::string line(ptr, bytes); // includes trailing CRLF typically
+    // remove trailing CRLF
+    while (!line.empty() && (line.back() == '\r' || line.back() == '\n'))
+        line.pop_back();
+
+    // find first ':' which separates name and value
+    auto pos = line.find(':');
+    if (pos == std::string::npos)
+        return bytes; // not a header line we care about
+
+    std::string name = trim(line.substr(0, pos));
+    std::string value = trim(line.substr(pos + 1));
+
+    if (name.empty())
+        return bytes;
+
+    auto headers = static_cast<std::unordered_map<std::string, std::string> *>(userdata);
+    // normalize header name to lowercase for case-insensitive lookup
+    (*headers)[to_lower(name)] = value;
+    return bytes;
+}
+
+bool twtgui::TwtDownloader::remoteChanged(const std::string &url,
+                                          const std::string &metaBase,
+                                          bool verifyPeer)
+{
+    const std::string etagPath = metaBase + ".etag";
+    const std::string lmPath = metaBase + ".lastmod";
+
+    std::string oldEtag = slurp(etagPath);
+    std::string oldLm = slurp(lmPath);
+
+    // IMPORTANT: call curl_global_init(CURL_GLOBAL_DEFAULT) once at program startup
+    // and curl_global_cleanup() at program shutdown. Do NOT call them here
+    // on every invocation in multithreaded programs.
+
+    CURL *curl = curl_easy_init();
+    if (!curl)
     {
-        outError = r.error.empty() ? ("twtGUI HTTP code: " + std::to_string(r.http_code)) : r.error;
-        return false;
+        // could not create handle — treat as "changed" or propagate error.
+        return true;
     }
-    return true;
+
+    // prepare header capture
+    std::unordered_map<std::string, std::string> headers;
+
+    // set URL and HEAD-only request
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_cb);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headers);
+
+    // we don't want a write callback for body since it's a HEAD request,
+    // but set a noop to be safe.
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, nullptr);
+
+    // build conditional request headers if we have metadata.
+    struct curl_slist *hdrs = nullptr;
+    std::string ifNoneMatchHeader;
+    std::string ifModSinceHeader;
+    if (!oldEtag.empty())
+    {
+        ifNoneMatchHeader = "If-None-Match: " + oldEtag;
+        hdrs = curl_slist_append(hdrs, ifNoneMatchHeader.c_str());
+    }
+    if (!oldLm.empty())
+    {
+        ifModSinceHeader = "If-Modified-Since: " + oldLm;
+        hdrs = curl_slist_append(hdrs, ifModSinceHeader.c_str());
+    }
+    if (hdrs)
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
+
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "twtGUI/1.0 (twtGUI-downloader)");
+
+    // SSL verification
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verifyPeer ? 1L : 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verifyPeer ? 2L : 0L);
+
+    CURLcode res = curl_easy_perform(curl);
+    long http = 0;
+    if (res == CURLE_OK)
+    {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http);
+    }
+
+    bool changed = false;
+
+    if (res == CURLE_OK && http == 304)
+    {
+        // not modified
+        changed = false;
+    }
+    else if (res == CURLE_OK && (http == 200 || http == 204 || http == 206))
+    {
+        // normal successful response; inspect headers captured.
+        auto itE = headers.find("etag");
+        auto itLm = headers.find("last-modified");
+
+        std::string newEtag = (itE != headers.end()) ? itE->second : std::string();
+        std::string newLm = (itLm != headers.end()) ? itLm->second : std::string();
+
+        if (!newEtag.empty() && oldEtag != newEtag)
+            changed = true;
+        if (!newLm.empty() && oldLm != newLm)
+            changed = true;
+
+        // store new headers if available (only overwrite when non-empty)
+        if (!newEtag.empty())
+        {
+            std::ofstream ofs(etagPath, std::ios::binary | std::ios::trunc);
+            if (ofs)
+                ofs << newEtag;
+        }
+        if (!newLm.empty())
+        {
+            std::ofstream ofs(lmPath, std::ios::binary | std::ios::trunc);
+            if (ofs)
+                ofs << newLm;
+        }
+    }
+    else
+    {
+        changed = true; // modified
+    }
+
+    // cleanup
+    if (hdrs)
+        curl_slist_free_all(hdrs);
+    curl_easy_cleanup(curl);
+
+    return changed;
 }

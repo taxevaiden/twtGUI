@@ -75,12 +75,70 @@ namespace twtgui
         return hash;
     }
 
+    // utilites for making text more readable
+
+    float calculateRelativeLuminance(int r, int g, int b)
+    {
+        // convert color to sRGB
+
+        float RsRGB = r / 255.0f;
+        float GsRGB = g / 255.0f;
+        float BsRGB = b / 255.0f;
+
+        auto evalChannel = [](const float channel) -> float
+        {
+            if (channel <= 0.03928)
+            {
+                return channel / 12.92f;
+            }
+            else
+            {
+                float base = (channel + 0.055f) / 1.055f;
+                return pow(base, 2.4);
+            }
+        };
+
+        RsRGB = evalChannel(RsRGB);
+        GsRGB = evalChannel(GsRGB);
+        BsRGB = evalChannel(BsRGB);
+
+        return 0.2126f * RsRGB + 0.7152f * GsRGB + 0.0722f * BsRGB;
+    }
+
     std::string generateColorFromWord(std::string word)
     {
         std::mt19937 engine(wordToUint(word));
         std::uniform_int_distribution<int> dist(1, 255);
 
-        return "rgb(" + std::to_string(dist(engine)) + "," + std::to_string(dist(engine)) + "," + std::to_string(dist(engine)) + ");";
+        int r = dist(engine);
+        int g = dist(engine);
+        int b = dist(engine);
+
+        QPalette *pal = new QPalette();
+        QColor color = pal->color(QPalette::Window);
+
+        float L1 = calculateRelativeLuminance(r, g, b);                                  // text
+        float L2 = calculateRelativeLuminance(color.red(), color.green(), color.blue()); // bg
+
+        float contrast = (L2 > L1) ? (L2 + 0.05f) / (L1 + 0.05f) : (L1 + 0.05f) / (L2 + 0.05f);
+        float adjust = 1.0f - (contrast - 1) / 20.0f;
+
+            if (L2 > L1)
+            {
+                // decrease brightness
+                r = static_cast<uint8_t>(std::max(0, r - static_cast<uint8_t>(128 * adjust)));
+                g = static_cast<uint8_t>(std::max(0, g - static_cast<uint8_t>(128 * adjust)));
+                b = static_cast<uint8_t>(std::max(0, b - static_cast<uint8_t>(128 * adjust)));
+            }
+            else
+            {
+                // increase brightness
+                r = static_cast<uint8_t>(std::min(255, r + static_cast<uint8_t>(128 * adjust)));
+                g = static_cast<uint8_t>(std::min(255, g + static_cast<uint8_t>(128 * adjust)));
+                b = static_cast<uint8_t>(std::min(255, b + static_cast<uint8_t>(128 * adjust)));
+            }
+
+        return "rgb(" + std::to_string(r) + "," + std::to_string(g) + "," + std::to_string(b) + ");";
     }
 
     twtgui::Timeline::Timeline(QWidget *parent)
@@ -295,18 +353,7 @@ namespace twtgui
                         return ad < bd; });
             for (const auto &tweet : collectedTweets)
             {
-                std::mt19937 engine(wordToUint(tweet.source));
-                std::uniform_int_distribution<int> dist(1, 255);
-                QDateTime dt = QDateTime::fromString(QString::fromStdString(tweet.timestamp), Qt::ISODate);
-
-                std::string content = tweet.content;
-                addLinkTags(content);
-
-                QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='color: rgb(" + QString::number(dist(engine)) + "," + QString::number(dist(engine)) + "," + QString::number(dist(engine)) + ")'><b>" + QString::fromStdString(tweet.source) + "</b></span>: " + QString::fromStdString(content);
-                QStandardItem *item = new QStandardItem();
-                item->setData(text, Qt::DisplayRole);
-                item->setEditable(false);
-                tweetsModel->insertRow(0, item);
+                addTweet(tweet.timestamp, tweet.content, tweet.source);
             }
 
             return;

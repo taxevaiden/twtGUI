@@ -28,18 +28,19 @@ struct Tweet {
 class Timeline : public QWidget
 {
     Q_OBJECT
+
     public:
         Timeline(QWidget *parent = nullptr);
         ~Timeline();
         void addTweet(std::string timestamp, std::string content, std::string source = "");
         void refreshTimeline();
-    private slots:
+        private slots:
         void handleButtonClick();
         // slots called from background workers (queued connections)
-        void onWorkerTweet(const QString &timestamp, const QString &content, const QString &source);
+    void onWorkerTweet(const QString &timestamp, const QString &content, const QString &source);
         void onWorkerStatus(const QString &statusMsg);
         void onWorkerFinished();
-    private:
+        private:
         void stopWorkers();
         void addLinkTags(std::string &content);
 

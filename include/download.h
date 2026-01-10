@@ -25,7 +25,7 @@ public:
 
     Result downloadToString(const std::string& url, std::string& outData, long timeoutSeconds = 0, bool verifyPeer = true);
 
-    bool downloadToFileSimple(const std::string& url, const std::string& outputPath, std::string& outError, long timeoutSeconds = 0, bool verifyPeer = true);
+    bool remoteChanged(const std::string& url, const std::string& metaBase, bool verifyPeer = true);
 
 private:
     static void ensureCurlInit();

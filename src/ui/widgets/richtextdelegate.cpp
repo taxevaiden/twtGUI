@@ -20,7 +20,6 @@ void RichTextDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opti
     // Draw the standard item background/selection
     style->drawPrimitive(QStyle::PE_PanelItemViewItem, &opt, painter, widget);
 
-    QTextDocument doc;
     doc.setHtml(index.data(Qt::DisplayRole).toString());
 
     int textWidth = opt.rect.width();
@@ -50,7 +49,6 @@ QSize RichTextDelegate::sizeHint(const QStyleOptionViewItem &option, const QMode
     QStyleOptionViewItem opt(option);
     initStyleOption(&opt, index);
 
-    QTextDocument doc;
     doc.setHtml(index.data(Qt::DisplayRole).toString());
 
     int textWidth = opt.rect.width();
