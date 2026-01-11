@@ -29,7 +29,10 @@ file(GLOB UI_SOURCES
     src/ui/*/*.h
 )
 
+set(ICON_RC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.rc")
+
 set(PROJECT_SOURCES
+    ${ICON_RC_FILE}
     ${MAIN_SOURCES}
     ${UI_SOURCES}
 )

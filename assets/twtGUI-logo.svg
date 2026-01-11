@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Created with Vectornator (http://vectornator.io/) -->
+<svg height="1024.0px" stroke-miterlimit="10" style="fill-rule:nonzero;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;" version="1.1" viewBox="0 0 1024 1024" width="1024.0px" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<path d="M0 0L1024 0L1024 320L0 320L0 0Z" id="Fill"/>
+<linearGradient gradientTransform="matrix(0.267816 -256.246 470.229 0.428505 511.185 287.489)" gradientUnits="userSpaceOnUse" id="LinearGradient" x1="0" x2="1" y1="0" y2="0">
+<stop offset="0" stop-color="#3f3f3f"/>
+<stop offset="1" stop-color="#2b2b2b"/>
+</linearGradient>
+<path d="M968 56L968 264L760 264L760 56L968 56Z" id="Fill_2"/>
+<linearGradient gradientTransform="matrix(1.27363e-14 208 -230.774 -4.24442e-15 864 56)" gradientUnits="userSpaceOnUse" id="LinearGradient_2" x1="0" x2="1" y1="0" y2="0">
+<stop offset="0" stop-color="#af0000"/>
+<stop offset="1" stop-color="#ff0000"/>
+</linearGradient>
+<path d="M784 1024L784 784L1024 784L1024 826.857L826.857 1024L784 1024Z" id="Fill_3"/>
+</defs>
+<g id="Layer-2">
+<g opacity="1">
+<use fill="url(#LinearGradient)" fill-rule="nonzero" stroke="none" xlink:href="#Fill"/>
+<mask height="320" id="StrokeMask" maskUnits="userSpaceOnUse" width="1024" x="0" y="0">
+<rect fill="#000000" height="320" stroke="none" width="1024" x="0" y="0"/>
+<use fill="#ffffff" fill-rule="evenodd" stroke="none" xlink:href="#Fill"/>
+</mask>
+<use fill="none" mask="url(#StrokeMask)" stroke="#181818" stroke-linecap="butt" stroke-linejoin="round" stroke-width="64" xlink:href="#Fill"/>
+</g>
+<g opacity="1">
+<g opacity="1">
+<use fill="url(#LinearGradient_2)" fill-rule="nonzero" stroke="none" xlink:href="#Fill_2"/>
+<mask height="208" id="StrokeMask_2" maskUnits="userSpaceOnUse" width="208" x="760" y="56">
+<rect fill="#000000" height="208" stroke="none" width="208" x="760" y="56"/>
+<use fill="#ffffff" fill-rule="evenodd" stroke="none" xlink:href="#Fill_2"/>
+</mask>
+<use fill="none" mask="url(#StrokeMask_2)" stroke="#700e00" stroke-linecap="butt" stroke-linejoin="round" stroke-width="48" xlink:href="#Fill_2"/>
+</g>
+<g opacity="1">
+<path d="M816.538 125.752L829.674 112.616L863.831 146.773L898.157 112.447L911.553 125.843L877.227 160.169L911.384 194.326L898.248 207.462L864.091 173.305L829.843 207.553L816.447 194.157L850.695 159.909L816.538 125.752Z" fill="#ffffff" fill-rule="nonzero" opacity="1" stroke="none"/>
+</g>
+</g>
+</g>
+<clipPath id="ArtboardFrame">
+<rect height="1024" width="1024" x="0" y="0"/>
+</clipPath>
+<g clip-path="url(#ArtboardFrame)" id="Layer-3">
+<path d="M800 1008C404.094 1008 411.906 1008 16 1008C16 618.762 16 725.238 16 336C508 336 516 336 1008 336L1008 800" fill="#ffffff" fill-rule="nonzero" opacity="1" stroke="none"/>
+<g opacity="1">
+<use fill="#e6e6e6" fill-rule="nonzero" stroke="none" xlink:href="#Fill_3"/>
+<mask height="240" id="StrokeMask_3" maskUnits="userSpaceOnUse" width="240" x="784" y="784">
+<rect fill="#000000" height="240" stroke="none" width="240" x="784" y="784"/>
+<use fill="#ffffff" fill-rule="evenodd" stroke="none" xlink:href="#Fill_3"/>
+</mask>
+<use fill="none" mask="url(#StrokeMask_3)" stroke="#a7a7a7" stroke-linecap="butt" stroke-linejoin="bevel" stroke-width="64" xlink:href="#Fill_3"/>
+</g>
+<path d="M800 1008C404.094 1008 411.906 1008 16 1008C16 618.762 16 725.238 16 336C508 336 516 336 1008 336L1008 800" fill="none" opacity="1" stroke="#a7a7a7" stroke-linecap="butt" stroke-linejoin="miter" stroke-width="32"/>
+<g opacity="1">
+<path d="M313.691 784C295.658 784 282.246 779.186 273.456 769.559C264.665 759.931 260.269 747.668 260.269 732.768L260.269 646.151C260.269 646.134 260.256 646.12 260.239 646.12L212.964 646.12C212.948 646.12 212.934 646.107 212.934 646.09L212.934 606.609C212.934 606.592 212.948 606.579 212.964 606.579L243.702 606.579C251.14 606.579 256.437 605.089 259.593 602.109C262.749 599.129 264.327 593.628 264.327 585.605L264.327 544.03C264.327 544.014 264.34 544 264.357 544L310.279 544C310.296 544 310.309 544.014 310.309 544.03L310.309 606.549C310.309 606.565 310.323 606.579 310.34 606.579L403.947 606.579C403.962 606.579 403.975 606.59 403.977 606.605L408.818 646.086C408.82 646.104 408.806 646.12 408.788 646.12L310.34 646.12C310.323 646.12 310.309 646.134 310.309 646.151L310.309 744.428C310.309 744.445 310.323 744.458 310.34 744.458L378.239 744.458C378.256 744.458 378.269 744.472 378.269 744.489L378.269 784M719.421 784C701.389 784 687.977 779.186 679.186 769.559C670.395 759.931 666 747.668 666 732.768L666 646.151C666 646.134 665.986 646.12 665.97 646.12L597.535 646.12C597.517 646.12 597.503 646.105 597.505 646.087L602.094 606.606C602.096 606.59 602.109 606.579 602.124 606.579L649.433 606.579C656.871 606.579 662.168 605.089 665.324 602.109C668.479 599.129 670.057 593.628 670.057 585.605L670.057 544.03C670.057 544.014 670.071 544 670.088 544L716.01 544C716.027 544 716.04 544.014 716.04 544.03L716.04 606.549C716.04 606.565 716.054 606.579 716.07 606.579L783.97 606.579C783.986 606.579 784 606.592 784 606.609L784 646.09C784 646.107 783.986 646.12 783.97 646.12L716.07 646.12C716.054 646.12 716.04 646.134 716.04 646.151L716.04 744.428C716.04 744.445 716.054 744.458 716.07 744.458L783.97 744.458C783.986 744.458 784 744.472 784 744.489L784 784M403.966 606.579L445.525 606.579C445.541 606.579 445.554 606.591 445.555 606.606L458.061 750.276C458.062 750.292 458.075 750.304 458.091 750.304L461.418 750.304C461.433 750.304 461.446 750.293 461.448 750.278L482.065 606.605C482.067 606.59 482.08 606.579 482.095 606.579L525.997 606.579C526.012 606.579 526.024 606.59 526.027 606.605L546.306 750.278C546.308 750.293 546.321 750.304 546.336 750.304L549.663 750.304C549.679 750.304 549.692 750.292 549.693 750.276L562.536 606.606C562.538 606.591 562.551 606.579 562.566 606.579L602.063 606.579C602.082 606.579 602.096 606.595 602.094 606.613L581.476 783.973C581.474 783.989 581.461 784 581.446 784L521.992 784C521.977 784 521.964 783.989 521.962 783.974L504.726 661.619C504.724 661.604 504.711 661.593 504.696 661.593L501.367 661.593C501.352 661.593 501.339 661.604 501.337 661.619L484.101 783.974C484.099 783.989 484.086 784 484.071 784L424.59 784" fill="#181818" fill-rule="nonzero" opacity="1" stroke="none"/>
+</g>
+</g>
+</svg>

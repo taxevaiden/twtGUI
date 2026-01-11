@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="512" alt="Screenshot of the twtGUI client" src="./assets/twtGUI-client.jpg">
+  <img width="256" alt="Screenshot of the twtGUI client" src="./assets/twtGUI-logo.svg">
 </p>
 
 # twtGUI
@@ -7,6 +7,11 @@
 twtGUI is a graphical client for twtxt.
 
 Currently the twtxt v1 specification is implemented, but the revised specification (described over at https://twtxt.dev/) will be implemented soon.
+
+<p align="center">
+  <img style="border-radius:1.5625%;" width="512" alt="Screenshot of the twtGUI client" src="./assets/twtGUI-client.png"><br>
+  The client in action
+</p>
 
 ## Features
 

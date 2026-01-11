@@ -231,6 +231,8 @@ int main(int argc, char *argv[])
 
     centralWidget->addTab(settingsPanel, "Settings");
 
+    centralWidget->setTabPosition(QTabWidget::TabPosition::West);
+
     window.setCentralWidget(centralWidget);
 
     window.show();

@@ -70,12 +70,11 @@ void RichTextDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opti
     QTextDocument *doc = documentFor(index, textWidth);
     doc->setHtml(index.data(Qt::DisplayRole).toString());
 
-    const int padding = 8;
-    textWidth = std::max(1, textWidth - padding);
+    textWidth = std::max(1, textWidth - HPadding);
     doc->setTextWidth(textWidth);
 
     // draw text within the rect minus padding
-    QRect textRect = opt.rect.adjusted(4, 4, -4, -4);
+    QRect textRect = opt.rect.adjusted(HPadding / 2, VPadding / 2, -HPadding / 2, -VPadding / 2);
     painter->save();
     painter->setClipRect(opt.rect, Qt::IntersectClip);
     painter->translate(textRect.topLeft());
@@ -92,8 +91,6 @@ QSize RichTextDelegate::sizeHint(
     const QStyleOptionViewItem &option,
     const QModelIndex &index) const
 {
-    constexpr int Padding = 8;
-
     int width = option.rect.width();
     const QListView *view =
         qobject_cast<const QListView *>(option.widget);
@@ -106,7 +103,7 @@ QSize RichTextDelegate::sizeHint(
             width = option.widget->width();
     }
 
-    width = std::max(1, width - Padding * 2);
+    width = std::max(1, width - HPadding * 2);
 
     QPersistentModelIndex pIndex(index);
     auto key = qMakePair(pIndex, width);
@@ -114,16 +111,16 @@ QSize RichTextDelegate::sizeHint(
     // use cache for height
     if (auto it = heightCache.find(key); it != heightCache.end())
     {
-        return QSize(width + Padding * 2, *it);
+        return QSize(width + HPadding * 2, *it);
     }
 
     // if there is nothing in cache, use doc and then add to cache
     QTextDocument *doc = documentFor(index, width);
-    int height = int(std::ceil(doc->size().height())) + Padding * 2;
+    int height = int(std::ceil(doc->size().height())) + VPadding * 2;
 
     heightCache.insert(key, height);
 
-    return QSize(width + Padding * 2, height);
+    return QSize(width + HPadding * 2, height);
 }
 
 QTextDocument *RichTextDelegate::documentFor(

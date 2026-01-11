@@ -26,6 +26,9 @@ class RichTextDelegate : public QStyledItemDelegate
     
         QTextDocument *documentFor(const QModelIndex &index,
                                    int width) const;
+
+        static constexpr int HPadding = 16;
+        static constexpr int VPadding = 6;
 };
 
 #endif // RICHTEXTDELEGATE_H
