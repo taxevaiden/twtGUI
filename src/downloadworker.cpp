@@ -10,6 +10,19 @@
 
 namespace twtgui
 {
+    // i don't know if this will actually do anything
+    void multilineExtension(std::string &content)
+    {
+        const std::string sep = u8"\u2028";
+        const std::string rep = "<br />";
+
+        size_t pos = 0;
+        while ((pos = content.find(sep, pos)) != std::string::npos)
+        {
+            content.replace(pos, sep.size(), rep);
+            pos += rep.size();
+        }
+    }
 
     void addLinkTags(std::string &content) {
         std::stringstream ss(content);
@@ -119,7 +132,8 @@ namespace twtgui
                 timestamp.pop_back();
             if (!content.empty() && content.back() == '\r')
                 content.pop_back();
-
+            
+            //multilineExtension(content);
             addLinkTags(content);
             // qDebug() << "DownloadWorker parsed tweet:" << QString::fromStdString(timestamp) << "::" << QString::fromStdString(content);
             emit tweetReady(QString::fromStdString(timestamp), QString::fromStdString(content), source);

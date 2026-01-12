@@ -44,7 +44,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     )
 endif()
 
-target_link_options(${PROJECT_NAME} PRIVATE "-static-libgcc" "-static-libstdc++")
+target_link_options(twtGUI PRIVATE "-static-libgcc" "-static-libstdc++")
 
 target_link_libraries(twtGUI PRIVATE Qt${QT_VERSION_MAJOR}::Core)
 target_link_libraries(twtGUI PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)

@@ -33,7 +33,7 @@ namespace twtgui
 {
     unsigned int wordToUint(const std::string &word)
     {
-        const unsigned int FNV_prime = 16777619u;
+        constexpr unsigned int FNV_prime = 16777619u;
         unsigned int hash = 2166136261u; // FNV offset basis
 
         for (unsigned char c : word)
@@ -74,15 +74,14 @@ namespace twtgui
 
     std::string generateColorFromWord(std::string word)
     {
-        std::mt19937 engine(wordToUint(word));
-        std::uniform_int_distribution<int> dist(0, 255);
+        uint hash = wordToUint(word);
 
-        int r = dist(engine);
-        int g = dist(engine);
-        int b = dist(engine);
+        int r = (hash * 23141) % 255;
+        int g = (hash * 93625) % 255;
+        int b = (hash * 67410) % 255;
 
-        QPalette *pal = new QPalette();
-        QColor color = pal->color(QPalette::Window);
+        QPalette pal;
+        QColor color = pal.color(QPalette::Window);
 
         float L1 = calculateRelativeLuminance(r, g, b);                                  // text
         float L2 = calculateRelativeLuminance(color.red(), color.green(), color.blue()); // bg
@@ -257,7 +256,7 @@ namespace twtgui
         std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? "color: " + generateColorFromWord(source) : "";
         QDateTime dt = QDateTime::fromString(QString::fromStdString(timestamp), Qt::ISODate);
 
-        QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='color: " + QString::fromStdString(color) + "'><b>" + QString::fromStdString(source) + "</b></span>: " + QString::fromStdString(content);
+        QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='" + QString::fromStdString(color) + "'><b>" + QString::fromStdString(source) + "</b></span>: " + QString::fromStdString(content);
         QStandardItem *item = new QStandardItem();
         item->setData(text, Qt::DisplayRole);
         item->setEditable(false);
