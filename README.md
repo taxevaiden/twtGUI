@@ -66,10 +66,11 @@ Clone the repo, `cd` into it and create the build directory:
 Now generate the build files:
 
 > [!IMPORTANT]
-> I have no idea why, but building with the build type "Debug" results in an executable that does not work at all. Upon running it, you'll get an exception:
+> I have no idea why, but building with the build type "Debug" results in an executable that does not work at all. When running a debug build and simply clicking "Refresh" after either the timeline or the view feed loads, you get this error:
 > `Thread 1 received signal ?, Unknown signal.`
-> Building with release optimizations seems to fix this (again no idea how/why). For now, build with release optimizations either with
+> Again, I have no idea how this happened (i'm being so serious it just started happening randomly) but building with release optimizations seems to fix this (again no idea how/why). For now, build with release optimizations either with
 > `-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo` or `-DCMAKE_BUILD_TYPE:STRING=Release`
+> when generating the build files.
 
     cmake -S .. -B . -G Ninja
 

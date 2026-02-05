@@ -1,17 +1,15 @@
-#include "downloadworker.h"
+#include "downloadtask.h"
 #include "download.h"
 
 #include <sstream>
 #include <vector>
 #include <QDebug>
 #include <fstream>
-
 #include <filesystem>
 
 namespace twtgui
 {
-    // i don't know if this will actually do anything
-    void emultilineExtension(std::string &content)
+    void multilineExtension(std::string &content)
     {
         const std::string sep = u8"\u2028";
         const std::string rep = "<br />";
@@ -24,7 +22,8 @@ namespace twtgui
         }
     }
 
-    void eaddLinkTags(std::string &content) {
+    void addLinkTags(std::string &content)
+    {
         std::stringstream ss(content);
         std::vector<std::string> words;
         std::string word;
@@ -56,67 +55,80 @@ namespace twtgui
         content = modifiedContent;
     }
 
-    DownloadWorker::DownloadWorker(QObject *parent)
-        : QObject(parent), m_cancelled(false)
+    DownloadTask::DownloadTask(QString url, QString source, QObject *parent)
+        : QObject(parent),
+          m_url(std::move(url)),
+          m_source(std::move(source))
     {
+        setAutoDelete(true); // IMPORTANT
     }
 
-    DownloadWorker::~DownloadWorker() = default;
+    DownloadTask::~DownloadTask() = default;
 
-    void DownloadWorker::cancel()
+    void DownloadTask::cancel()
     {
-        m_cancelled.store(true);
+        m_cancelled.store(true, std::memory_order_relaxed);
     }
 
-    void DownloadWorker::start(const QString &url, const QString &source)
+    void DownloadTask::run()
     {
-        if (url.isEmpty())
+        if (m_url.isEmpty())
         {
             emit status("No URL provided");
             emit finished();
             return;
         }
-        
-        // check if cache directory exists, create one if it doesn't
+
+        // cache directory
         if (!std::filesystem::is_directory("cache"))
             std::filesystem::create_directory("cache");
 
-        // determine file name from url
         auto hostFromUrl = [](const std::string &u) -> std::string
         {
             if (u.empty())
-                return "";
+                return {};
             size_t pos = u.find("://");
             size_t start = (pos == std::string::npos) ? 0 : pos + 3;
             size_t end = u.find('/', start);
             return u.substr(start, end == std::string::npos ? std::string::npos : end - start);
         };
 
-        std::string outPath = "cache/" + hostFromUrl(url.toStdString()) + ".txt";
+        std::string outPath =
+            "cache/" + hostFromUrl(m_url.toStdString()) + ".txt";
+
         TwtDownloader downloader;
 
-        // download if the feed isn't in cache OR the feed on the internet has changed
-        if (!std::filesystem::exists(outPath) || downloader.remoteChanged(url.toStdString(), outPath))
+        if (!std::filesystem::exists(outPath) ||
+            downloader.remoteChanged(m_url.toStdString(), outPath))
         {
-            emit status(QString("Downloading %1 ...").arg(url));
+            emit status(QString("Downloading %1 ...").arg(m_url));
 
-            TwtDownloader::Result result = downloader.downloadToFile(url.toStdString(), outPath, 30, true);
+            TwtDownloader::Result result =
+                downloader.downloadToFile(m_url.toStdString(),
+                                          outPath,
+                                          30,
+                                          true);
+
             if (!result.success)
             {
                 emit error(QString::fromStdString(result.error));
                 emit finished();
                 return;
             }
-            emit status(QString("Downloaded %1. Parsing...").arg(url));
-        } else emit status(QString("Using cache for %1. Parsing ... ").arg(url));
+
+            emit status(QString("Downloaded %1. Parsing...").arg(m_url));
+        }
+        else
+        {
+            emit status(QString("Using cache for %1. Parsing ...").arg(m_url));
+        }
 
         std::ifstream text(outPath);
-
         std::string line;
 
-        while (!m_cancelled.load() && std::getline(text, line))
+        while (!m_cancelled.load(std::memory_order_relaxed) &&
+               std::getline(text, line))
         {
-            // trim potential CR
             if (!line.empty() && line.back() == '\r')
                 line.pop_back();
 
@@ -127,19 +139,22 @@ namespace twtgui
             std::string timestamp = line.substr(0, tab);
             std::string content = line.substr(tab + 1);
 
-            // trim trailing CR from timestamp/content
             if (!timestamp.empty() && timestamp.back() == '\r')
                 timestamp.pop_back();
             if (!content.empty() && content.back() == '\r')
                 content.pop_back();
-            
-            //emultilineExtension(content);
-            eaddLinkTags(content);
-            // qDebug() << "DownloadWorker parsed tweet:" << QString::fromStdString(timestamp) << "::" << QString::fromStdString(content);
-            emit tweetReady(QString::fromStdString(timestamp), QString::fromStdString(content), source);
+
+            addLinkTags(content);
+
+            emit tweetReady(QString::fromStdString(timestamp),
+                            QString::fromStdString(content),
+                            m_source);
         }
 
-        emit finished();
-    }
+        emit status(QString("Done parsing feed for %1").arg(m_url));
 
-} // namespace twtgui
+        emit finished();
+
+        return;
+    }
+}

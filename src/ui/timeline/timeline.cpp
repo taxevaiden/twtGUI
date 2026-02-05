@@ -2,6 +2,8 @@
 #include "download.h"
 #include "downloadworker.h"
 
+#include "downloadtask.h"
+
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -19,6 +21,7 @@
 #include <QAbstractItemView>
 #include <QAbstractScrollArea>
 #include <QDebug>
+#include <QThreadPool>
 
 #include "SimpleIni.h"
 #include "../widgets/richtextdelegate.h"
@@ -117,6 +120,8 @@ namespace twtgui
         refreshButton = new QPushButton("Refresh", this);
         connect(refreshButton, &QPushButton::clicked, this, &Timeline::handleButtonClick);
 
+        connect(this, &Timeline::allTweetsReady, this, &Timeline::updateTweetsView, Qt::QueuedConnection);
+
         // list view for tweets
         tweetsView = new QListView(this);
         tweetsModel = new QStandardItemModel(this);
@@ -144,23 +149,23 @@ namespace twtgui
 
     void twtgui::Timeline::stopWorkers()
     {
-        std::lock_guard<std::mutex> lk(workerMutex);
-        for (QObject *w : workers)
+        std::vector<DownloadTask *> local;
+
         {
-            // DownloadWorker has cancel() slot
-            if (w)
-                QMetaObject::invokeMethod(w, "cancel", Qt::QueuedConnection);
-            if (w)
-                w->deleteLater();
+            std::lock_guard<std::mutex> lk(workerMutex);
+            local = tasks;
+            tasks.clear();
+            pendingWorkers = 0;
         }
-        for (QThread *t : workerThreads)
+
+        for (auto *task : local)
         {
-            if (t)
-                t->quit();
+            if (task)
+            {
+                QMetaObject::invokeMethod(task, "cancel", Qt::QueuedConnection);
+                task->disconnect(this);
+            }
         }
-        workers.clear();
-        workerThreads.clear();
-        pendingWorkers = 0;
     }
 
     void twtgui::Timeline::onWorkerTweet(const QString &timestamp, const QString &content, const QString &source)
@@ -175,74 +180,57 @@ namespace twtgui
             t.source = source.toStdString();
             collectedTweets.push_back(t);
         }
+        return;
     }
 
     void twtgui::Timeline::onWorkerStatus(const QString &statusMsg)
     {
         statusLabel->setText(statusMsg);
+        return;
     }
 
     void twtgui::Timeline::onWorkerFinished()
     {
-        qDebug() << "Timeline::onWorkerFinished sender:" << sender();
-        QObject *s = sender();
-        QThread *threadToQuit = nullptr;
+        auto *task = qobject_cast<DownloadTask *>(sender());
+
+        if (task)
+        {
+            // remove task from vector
+            std::lock_guard<std::mutex> lk(workerMutex);
+            auto it = std::find(tasks.begin(), tasks.end(), task);
+            if (it != tasks.end())
+                tasks.erase(it);
+        }
+
+        // If there are no more pending workers, emit signal to update UI
         {
             std::lock_guard<std::mutex> lk(workerMutex);
-            // find sender in workers list
-            for (size_t i = 0; i < workers.size(); ++i)
-            {
-                if (workers[i] == s)
-                {
-                    // schedule deletion
-                    workers[i]->deleteLater();
-                    if (i < workerThreads.size())
-                    {
-                        threadToQuit = workerThreads[i];
-                        workerThreads[i]->quit();
-                        workerThreads[i] = nullptr;
-                    }
-                    workers[i] = nullptr;
-                    break;
-                }
-            }
-
-            pendingWorkers = std::max(0, pendingWorkers - 1);
-            qDebug() << "Timeline::onWorkerFinished pendingWorkers now" << pendingWorkers;
+            if (!tasks.empty())
+                return;
         }
 
-        if (pendingWorkers == 0)
+        emit allTweetsReady();
+    }
+
+    void Timeline::updateTweetsView()
+    {
+        qDebug() << "Timeline::onWorkerFinished rebuilding view";
+
+        qDebug() << "Timeline::onWorkerFinished sorting";
+
+        std::vector<Tweet> local;
         {
-            qDebug() << "Timeline::onWorkerFinished rebuilding view";
-            // rebuild sorted view
-            std::vector<Tweet> local;
-            {
-                std::lock_guard<std::mutex> lk(workerMutex);
-                local = collectedTweets;
-                collectedTweets.clear();
-            }
-
-            std::sort(local.begin(), local.end(), [](const Tweet &a, const Tweet &b)
-                      {
-                QDateTime ad = QDateTime::fromString(QString::fromStdString(a.timestamp), Qt::ISODate);
-                QDateTime bd = QDateTime::fromString(QString::fromStdString(b.timestamp), Qt::ISODate);
-                return ad < bd; });
-
-            // tweetsModel->clear();
-            for (const auto &tweet : local)
-            {
-                std::string color = std::string(twtgui::GlobalConfig::config.GetValue("settings", "colored_names", "0")) == "1" ? "color: " + generateColorFromWord(tweet.source) : "";
-                QDateTime dt = QDateTime::fromString(QString::fromStdString(tweet.timestamp), Qt::ISODate);
-
-                QString text = dt.toString("MM-dd-yyyy hh:mm AP") + " " + "<span style='" + QString::fromStdString(color) + "'><b>" + QString::fromStdString(tweet.source) + "</b></span>: " + QString::fromStdString(tweet.content);
-                QStandardItem *item = new QStandardItem();
-                item->setData(text, Qt::DisplayRole);
-                item->setEditable(false);
-                tweetsModel->insertRow(0, item);
-            }
-
-            statusLabel->setText("All feeds loaded");
+            std::lock_guard<std::mutex> lk(workerMutex);
+            local.swap(collectedTweets); // take ownership of all tweets safely
         }
+
+        std::sort(local.begin(), local.end(), [](const Tweet &a, const Tweet &b)
+                  { return QDateTime::fromString(QString::fromStdString(a.timestamp), Qt::ISODate) < QDateTime::fromString(QString::fromStdString(b.timestamp), Qt::ISODate); });
+
+        for (const auto &tweet : local)
+            addTweet(tweet.timestamp, tweet.content, tweet.source);
+
+        statusLabel->setText("All feeds loaded");
     }
 
     void twtgui::Timeline::addTweet(std::string timestamp, std::string content, std::string source)
@@ -341,39 +329,36 @@ namespace twtgui
                     sourceName = parts[2];
             }
 
-            // create worker and thread
-            QThread *thread = new QThread(this);
-            auto *worker = new twtgui::DownloadWorker();
-            worker->moveToThread(thread);
+            QThreadPool::globalInstance()->setMaxThreadCount(4);
 
-            // keep track so we can cancel if needed
+            auto *task = new twtgui::DownloadTask(
+                QString::fromStdString(value),
+                QString::fromStdString(sourceName));
+
+            connect(task, &DownloadTask::status,
+                    this, &Timeline::onWorkerStatus, Qt::QueuedConnection);
+            connect(task, &DownloadTask::error, this, [this](const QString &err)
+                    { statusLabel->setText(err); }, Qt::QueuedConnection);
+            connect(task, &DownloadTask::tweetReady,
+                    this, &Timeline::onWorkerTweet, Qt::QueuedConnection);
+            connect(task, &DownloadTask::finished, this, [this, task]()
+                    {
+                        {
+                            std::lock_guard<std::mutex> lk(workerMutex);
+                            tasks.erase(std::remove(tasks.begin(), tasks.end(), task), tasks.end());
+                            pendingWorkers = std::max(0, pendingWorkers - 1);
+                        }
+
+                        onWorkerFinished(); });
+
             {
                 std::lock_guard<std::mutex> lk(workerMutex);
-                workerThreads.push_back(thread);
-                workers.push_back(worker);
+                tasks.push_back(task);
                 pendingWorkers++;
                 qDebug() << "pendingWorkers now" << pendingWorkers;
             }
 
-            // capture URL as an std::string so it stays valid after this function returns
-            std::string urlStr = value;
-            qDebug() << "Starting worker for" << QString::fromStdString(urlStr) << "(source" << QString::fromStdString(sourceName) << ")";
-
-            connect(thread, &QThread::started, [worker, urlStr, sourceName]()
-                    {
-            // call start on the worker (runs in worker thread)
-            QMetaObject::invokeMethod(worker, "start", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(urlStr)), Q_ARG(QString, QString::fromStdString(sourceName))); });
-
-            connect(worker, &twtgui::DownloadWorker::tweetReady, this, &Timeline::onWorkerTweet, Qt::QueuedConnection);
-            connect(worker, &twtgui::DownloadWorker::status, this, &Timeline::onWorkerStatus, Qt::QueuedConnection);
-            connect(worker, &twtgui::DownloadWorker::error, this, [this](const QString &err)
-                    { statusLabel->setText(err); }, Qt::QueuedConnection);
-            connect(worker, &twtgui::DownloadWorker::finished, this, &Timeline::onWorkerFinished, Qt::QueuedConnection);
-
-            connect(worker, &QObject::destroyed, thread, &QThread::quit, Qt::QueuedConnection);
-            connect(thread, &QThread::finished, thread, &QObject::deleteLater, Qt::QueuedConnection);
-
-            thread->start();
+            QThreadPool::globalInstance()->start(task);
         }
     }
 

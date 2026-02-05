@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "SimpleIni.h"
+#include "downloadtask.h"
 
 namespace twtgui {
 
@@ -34,13 +35,16 @@ class Timeline : public QWidget
         ~Timeline();
         void addTweet(std::string timestamp, std::string content, std::string source = "");
         void refreshTimeline();
-        private slots:
+    signals:
+        void allTweetsReady();
+    private slots:
         void handleButtonClick();
         // slots called from background workers (queued connections)
-    void onWorkerTweet(const QString &timestamp, const QString &content, const QString &source);
+        void onWorkerTweet(const QString &timestamp, const QString &content, const QString &source);
         void onWorkerStatus(const QString &statusMsg);
         void onWorkerFinished();
-        private:
+        void updateTweetsView();
+    private:
         void stopWorkers();
 
         QLabel* statusLabel;
@@ -57,6 +61,8 @@ class Timeline : public QWidget
         std::vector<QObject*> workers;
         int pendingWorkers = 0;
         std::vector<Tweet> collectedTweets;
+
+        std::vector<DownloadTask*> tasks;
 };
 
 } // namespace twtgui
