@@ -13,8 +13,8 @@ fn main() -> iced::Result {
             default_text_size: Pixels(12.0),
             ..Default::default()
         })
-        .font(include_bytes!("../assets/iosevka-aile.ttf").as_slice())
-        .font(include_bytes!("../assets/iosevka-aile-bold.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/iosevka-aile.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/iosevka-aile-bold.ttf").as_slice())
         .default_font(font::Font::with_name("Iosevka Aile"))
         .run()
 }
