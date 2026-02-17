@@ -3983,6 +3983,7 @@ dependencies = [
  "iced",
  "reqwest",
  "serde",
+ "url",
 ]
 
 [[package]]

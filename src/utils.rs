@@ -1,4 +1,8 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
+use iced::{
+    Length,
+    widget::{Column, button, column, container, row, scrollable, text, text_input},
+};
 
 #[derive(Clone)]
 pub struct Tweet {
@@ -23,4 +27,27 @@ pub fn parse_twtxt(author: &str, input: &str) -> Vec<Tweet> {
             }
         })
         .collect()
+}
+
+pub fn build_timeline<'a, M>(tweets: &'a [Tweet]) -> Column<'a, M>
+where
+    M: 'a,
+{
+    let mut col = column!().spacing(2);
+
+    for tweet in tweets {
+        let formatted = format!(
+            "{} {}: {}",
+            tweet
+                .timestamp
+                .with_timezone(&Local)
+                .format("%m/%d/%Y %-I:%M %p"),
+            tweet.author,
+            tweet.content
+        );
+
+        col = col.push(container(text(formatted)).padding(4).width(Length::Fill));
+    }
+
+    col
 }

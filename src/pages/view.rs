@@ -5,10 +5,9 @@ use iced::{
 };
 
 use crate::config::AppConfig;
-use crate::utils::{Tweet, parse_twtxt};
+use crate::utils::{Tweet, build_timeline, parse_twtxt};
 
 pub struct ViewPage {
-    config: AppConfig,
     composer: String,
     success: bool,
     fetched: String,
@@ -23,9 +22,8 @@ pub enum Message {
 }
 
 impl ViewPage {
-    pub fn new(config: AppConfig) -> Self {
+    pub fn new(config: &AppConfig) -> Self {
         Self {
-            config: config.clone(),
             composer: config.settings.twturl.clone(),
             success: false,
             fetched: String::new(),
@@ -55,10 +53,21 @@ impl ViewPage {
                 self.success = true;
                 self.fetched = data.clone();
                 println!("{}", data);
-                self.tweets = parse_twtxt(self.composer.clone().as_str(), data.as_str());
+                if let Ok(url) = url::Url::parse(&self.composer.clone()) {
+                    if let Some(host) = url.host_str() {
+                        println!("Host: {}", host);
+                        self.tweets = parse_twtxt(host, data.as_str());
+                    } else {
+                        self.tweets = parse_twtxt("unknown", data.as_str());
+                    }
+                } else {
+                    self.tweets = parse_twtxt("unknown", data.as_str());
+                }
+
                 self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
                 Task::none()
             }
+
             Message::DownloadFinished(Err(e)) => {
                 self.success = false;
                 self.fetched = format!("Error: {}", e);
@@ -68,49 +77,8 @@ impl ViewPage {
         }
     }
 
-    // fn refresh_timeline(&mut self) {
-    //     self.tweets.clear();
-
-    //     let path = Path::new(&self.config.settings.twtxt);
-    //     // let file = File::open(&path).unwrap();
-    //     // let reader = io::BufReader::new(file);
-
-    //     // for line in reader.lines().flatten() {
-    //     //     let parts: Vec<&str> = line.splitn(2, '\t').collect();
-    //     //     if parts.len() == 2 {
-    //     //         if let Ok(ts) = DateTime::parse_from_rfc3339(parts[0]) {
-    //     //             self.tweets.push(Tweet {
-    //     //                 timestamp: ts.with_timezone(&Utc),
-    //     //                 author: self.config.settings.nick.clone(),
-    //     //                 content: parts[1].to_string(),
-    //     //             });
-    //     //         }
-    //     //     }
-    //     // }
-    //     //
-    //     if let Ok(content) = std::fs::read_to_string(path) {
-    //         self.tweets =
-    //             parse_twtxt(self.config.settings.nick.clone().as_str(), content.as_str()).clone();
-
-    //         self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-    //     }
-    // }
-
     pub fn view(&self) -> Element<'_, Message> {
-        let timeline = self.tweets.iter().fold(column!().spacing(2), |col, tweet| {
-            let formatted = format!(
-                "{} {}: {}",
-                tweet
-                    .timestamp
-                    .with_timezone(&Local)
-                    .format("%m/%d/%Y %-I:%M %p"),
-                tweet.author,
-                tweet.content
-            );
-
-            col.push(container(text(formatted)).padding(4).width(Length::Fill))
-        });
-        //
+        let timeline = build_timeline(&self.tweets);
 
         let scroll = scrollable(timeline).height(iced::Length::Fill);
 
