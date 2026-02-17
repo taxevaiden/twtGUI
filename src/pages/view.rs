@@ -1,11 +1,10 @@
-use chrono::Local;
 use iced::{
     Element, Length, Task,
-    widget::{button, column, container, row, scrollable, text, text_input},
+    widget::{button, column, row, scrollable, text_input},
 };
 
 use crate::config::AppConfig;
-use crate::utils::{Tweet, build_timeline, parse_twtxt};
+use crate::utils::{Tweet, build_timeline, download_file, parse_twtxt};
 
 pub struct ViewPage {
     composer: String,
@@ -98,22 +97,4 @@ impl ViewPage {
             .spacing(8)
             .into()
     }
-}
-
-async fn download_file(url: String) -> Result<String, String> {
-    static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-
-    let client = reqwest::Client::builder()
-        .user_agent(APP_USER_AGENT)
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .text()
-        .await
-        .map_err(|e| e.to_string())
 }

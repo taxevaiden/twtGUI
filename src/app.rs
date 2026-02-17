@@ -4,7 +4,7 @@ use iced::{
 };
 
 use crate::config::AppConfig;
-use crate::pages::{following, settings, timeline, view};
+use crate::pages::{following, timeline, view};
 
 pub struct TwtxtApp {
     page: Page,
@@ -12,7 +12,6 @@ pub struct TwtxtApp {
     timeline: timeline::TimelinePage,
     view: view::ViewPage,
     following: following::FollowingPage,
-    settings: settings::SettingsPage,
 }
 
 #[derive(Debug, Clone)]
@@ -20,11 +19,9 @@ pub enum Message {
     SwitchToTimeline,
     SwitchToView,
     SwitchToFollowing,
-    SwitchToSettings,
     Timeline(timeline::Message),
     View(view::Message),
     Following(following::Message),
-    Settings(settings::Message),
 }
 
 #[derive(Default)]
@@ -33,7 +30,6 @@ enum Page {
     Timeline,
     View,
     Following,
-    Settings,
 }
 
 impl TwtxtApp {
@@ -45,7 +41,6 @@ impl TwtxtApp {
             timeline: timeline::TimelinePage::new(),
             view: view::ViewPage::new(&config),
             following: following::FollowingPage::default(),
-            settings: settings::SettingsPage::default(),
         }
     }
 
@@ -66,25 +61,15 @@ impl TwtxtApp {
                 Task::none()
             }
 
-            Message::SwitchToSettings => {
-                self.page = Page::Settings;
-                Task::none()
-            }
-
-            Message::Timeline(msg) => {
-                self.timeline.update(msg, &self.config);
-                Task::none()
-            }
+            Message::Timeline(msg) => self
+                .timeline
+                .update(msg, &self.config)
+                .map(Message::Timeline),
 
             Message::View(msg) => self.view.update(msg).map(Message::View),
 
             Message::Following(msg) => {
-                self.following.update(msg);
-                Task::none()
-            }
-
-            Message::Settings(msg) => {
-                self.settings.update(msg);
+                self.following.update(msg, &mut self.config);
                 Task::none()
             }
         }
@@ -101,9 +86,6 @@ impl TwtxtApp {
             button("Following")
                 .on_press(Message::SwitchToFollowing)
                 .padding([8, 16]),
-            button("Settings")
-                .on_press(Message::SwitchToSettings)
-                .padding([8, 16]),
         ]
         .spacing(8);
 
@@ -111,7 +93,6 @@ impl TwtxtApp {
             Page::Timeline => self.timeline.view().map(Message::Timeline),
             Page::View => self.view.view().map(Message::View),
             Page::Following => self.following.view(&self.config).map(Message::Following),
-            Page::Settings => self.settings.view().map(Message::Settings),
         };
 
         column![nav, content].spacing(8).padding(8).into()

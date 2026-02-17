@@ -1,13 +1,13 @@
-use chrono::{Local, Utc};
+use chrono::Utc;
 use iced::{
-    Alignment, Element, Length,
-    widget::{button, column, container, row, scrollable, text, text_input},
+    Alignment, Element, Length, Task,
+    widget::{button, column, row, scrollable, text, text_input},
 };
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
-use crate::utils::{Tweet, parse_twtxt};
+use crate::utils::{Tweet, download_file, parse_twtxt};
 use crate::{config::AppConfig, utils::build_timeline};
 
 pub struct TimelinePage {
@@ -20,6 +20,10 @@ pub enum Message {
     ComposerChanged(String),
     PostPressed,
     Refresh,
+    DownloadFinished {
+        nick: String,
+        result: Result<String, String>,
+    },
 }
 
 impl TimelinePage {
@@ -30,23 +34,37 @@ impl TimelinePage {
         }
     }
 
-    pub fn update(&mut self, message: Message, config: &AppConfig) {
+    pub fn update(&mut self, message: Message, config: &AppConfig) -> Task<Message> {
         match message {
             Message::ComposerChanged(value) => {
                 self.composer = value;
+                Task::none()
             }
 
             Message::PostPressed => {
                 self.send_tweet(config);
+                Task::none()
             }
 
-            Message::Refresh => {
-                self.refresh_timeline(config);
-            }
+            Message::Refresh => self.refresh_timeline(config),
+
+            Message::DownloadFinished { nick, result } => match result {
+                Ok(content) => {
+                    let fetched = parse_twtxt(nick.as_str(), content.as_str());
+                    self.tweets.extend(fetched);
+
+                    self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                    Task::none()
+                }
+                Err(err) => {
+                    println!("Error downloading: {}", err);
+                    Task::none()
+                }
+            },
         }
     }
 
-    fn refresh_timeline(&mut self, config: &AppConfig) {
+    fn refresh_timeline(&mut self, config: &AppConfig) -> Task<Message> {
         self.tweets.clear();
 
         let path = Path::new(&config.settings.twtxt);
@@ -54,7 +72,21 @@ impl TimelinePage {
             self.tweets = parse_twtxt(&config.settings.nick.as_str(), content.as_str()).clone();
 
             self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        }
+        };
+
+        // spawn tasks to download following twtxts
+        let mut tasks = Vec::new();
+
+        if let Some(following) = config.following.as_ref() {
+            for (key, value) in following {
+                tasks.push(Task::perform(download_file(value.to_string()), {
+                    let key = key.clone();
+                    move |result| Message::DownloadFinished { nick: key, result }
+                }));
+            }
+        };
+
+        Task::batch(tasks)
     }
 
     fn send_tweet(&mut self, config: &AppConfig) {

@@ -1,14 +1,14 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub settings: Settings,
     pub following: Option<std::collections::HashMap<String, String>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub nick: String,
     pub twtxt: String,
@@ -30,5 +30,26 @@ impl AppConfig {
             .expect("Failed to load config");
 
         settings.try_deserialize().expect("Invalid config format")
+    }
+
+    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut ini = ini::Ini::new();
+
+        // Settings section
+        ini.with_section(Some("settings"))
+            .set("nick", &self.settings.nick)
+            .set("twtxt", &self.settings.twtxt)
+            .set("twturl", &self.settings.twturl);
+
+        // Following section
+        if let Some(following) = &self.following {
+            let mut section = ini.with_section(Some("following"));
+            for (name, url) in following {
+                section.set(name, url);
+            }
+        }
+
+        ini.write_to_file("config.ini")?;
+        Ok(())
     }
 }

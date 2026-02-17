@@ -4,7 +4,7 @@ mod pages;
 mod utils;
 
 use app::TwtxtApp;
-use iced::{Pixels, Program, Settings, font};
+use iced::{Pixels, Settings, font};
 
 fn main() -> iced::Result {
     iced::application(TwtxtApp::default, TwtxtApp::update, TwtxtApp::view)
@@ -14,6 +14,7 @@ fn main() -> iced::Result {
             ..Default::default()
         })
         .font(include_bytes!("../assets/iosevka-aile.ttf").as_slice())
+        .font(include_bytes!("../assets/iosevka-aile-bold.ttf").as_slice())
         .default_font(font::Font::with_name("Iosevka Aile"))
         .run()
 }

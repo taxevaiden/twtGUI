@@ -10,3 +10,4 @@ serde = { version = "1", features = ["derive"] }
 config = "0.14"
 reqwest = "0.13.2"
 url = "2.5.8"
+rust-ini = "0.21.3"
