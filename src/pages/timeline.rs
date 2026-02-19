@@ -1,18 +1,20 @@
+use bytes::Bytes;
 use chrono::Utc;
 use iced::{
     Alignment, Element, Length, Task,
-    widget::{button, column, row, scrollable, text, text_input},
+    widget::{button, column, image::Handle, row, scrollable, text, text_input},
 };
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
-use crate::utils::{Tweet, download_file, parse_tweets};
+use crate::utils::{Tweet, download_binary, download_file, parse_metadata, parse_tweets};
 use crate::{config::AppConfig, utils::build_feed};
 
 pub struct TimelinePage {
     composer: String,
     tweets: Vec<Tweet>,
+    local_avatar: Option<Handle>,
 }
 
 #[derive(Debug, Clone)]
@@ -24,6 +26,11 @@ pub enum Message {
         nick: String,
         result: Result<String, String>,
     },
+    AvatarDownloadFinished {
+        nick: String,
+        content: String,
+        result: Result<Bytes, String>,
+    },
     LinkClicked(String),
     RedirectToPage(crate::app::RedirectInfo),
 }
@@ -33,6 +40,7 @@ impl TimelinePage {
         Self {
             composer: String::new(),
             tweets: Vec::new(),
+            local_avatar: None,
         }
     }
 
@@ -52,9 +60,23 @@ impl TimelinePage {
 
             Message::DownloadFinished { nick, result } => match result {
                 Ok(content) => {
-                    let fetched = parse_tweets(nick.as_str(), content.as_str());
-                    self.tweets.extend(fetched);
+                    let metadata = parse_metadata(&content);
 
+                    if let Some(avatar_url) = metadata.as_ref().and_then(|m| m.get("avatar")) {
+                        return Task::perform(download_binary(avatar_url.to_string()), {
+                            let nick = nick.clone();
+                            let content = content.clone();
+                            move |result| Message::AvatarDownloadFinished {
+                                nick,
+                                content,
+                                result,
+                            }
+                        });
+                    }
+
+                    // No avatar → just parse normally
+                    let fetched = parse_tweets(&nick, Handle::from_bytes(Bytes::new()), &content);
+                    self.tweets.extend(fetched);
                     self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
                     Task::none()
                 }
@@ -63,6 +85,32 @@ impl TimelinePage {
                     Task::none()
                 }
             },
+
+            Message::AvatarDownloadFinished {
+                nick,
+                content,
+                result,
+            } => {
+                let avatar_bytes = match result {
+                    Ok(bytes) => bytes,
+                    Err(err) => {
+                        println!("Avatar download failed: {}", err);
+                        Bytes::new()
+                    }
+                };
+
+                let handle = Handle::from_bytes(avatar_bytes);
+
+                if nick == config.settings.nick {
+                    self.local_avatar = Some(handle.clone());
+                }
+
+                let fetched = parse_tweets(&nick, handle, &content);
+                self.tweets.extend(fetched);
+                self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+                Task::none()
+            }
 
             Message::LinkClicked(url) => {
                 if url.contains("twtxt") && url.ends_with(".txt") {
@@ -86,16 +134,37 @@ impl TimelinePage {
     fn refresh_timeline(&mut self, config: &AppConfig) -> Task<Message> {
         self.tweets.clear();
 
-        let path = Path::new(&config.settings.twtxt);
-        if let Ok(content) = std::fs::read_to_string(path) {
-            self.tweets = parse_tweets(&config.settings.nick.as_str(), content.as_str()).clone();
-
-            self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        };
-
-        // spawn tasks to download following twtxts
         let mut tasks = Vec::new();
 
+        let path = Path::new(&config.settings.twtxt);
+
+        if let Ok(content) = std::fs::read_to_string(path) {
+            let metadata = parse_metadata(&content);
+
+            if let Some(avatar_url) = metadata.as_ref().and_then(|m| m.get("avatar")) {
+                // Download avatar first, then parse tweets
+                tasks.push(Task::perform(download_binary(avatar_url.to_string()), {
+                    let content = content.clone();
+                    let nick = config.settings.nick.clone();
+                    move |result| Message::AvatarDownloadFinished {
+                        nick,
+                        content,
+                        result,
+                    }
+                }));
+            } else {
+                // No avatar → parse immediately
+                let fetched = parse_tweets(
+                    &config.settings.nick,
+                    Handle::from_bytes(Bytes::new()),
+                    &content,
+                );
+
+                self.tweets.extend(fetched);
+            }
+        }
+
+        // Spawn tasks to download following twtxts
         if let Some(following) = config.following.as_ref() {
             for (key, value) in following {
                 tasks.push(Task::perform(download_file(value.to_string()), {
@@ -103,7 +172,9 @@ impl TimelinePage {
                     move |result| Message::DownloadFinished { nick: key, result }
                 }));
             }
-        };
+        }
+
+        self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Task::batch(tasks)
     }
@@ -115,11 +186,17 @@ impl TimelinePage {
 
         let now = Utc::now();
 
+        let avatar = self
+            .local_avatar
+            .clone()
+            .unwrap_or_else(|| Handle::from_bytes(Bytes::new()));
+
         self.tweets.insert(
             0,
             Tweet {
                 timestamp: now,
                 author: config.settings.nick.clone(),
+                avatar,
                 content: self.composer.clone(),
             },
         );

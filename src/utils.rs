@@ -3,13 +3,20 @@ use std::collections::HashMap;
 use chrono::{DateTime, Local, Utc};
 use iced::{
     Color, Length, font,
-    widget::{Column, column, container, rich_text, span, text},
+    widget::{Column, Image, column, container, image::Handle, rich_text, row, span, text},
 };
+
+use bytes::Bytes;
+use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::path::PathBuf;
 
 #[derive(Clone)]
 pub struct Tweet {
     pub timestamp: DateTime<Utc>,
     pub author: String,
+    pub avatar: Handle,
     pub content: String,
 }
 
@@ -36,7 +43,7 @@ pub fn parse_metadata(input: &str) -> Option<HashMap<String, String>> {
     if map.is_empty() { None } else { Some(map) }
 }
 
-pub fn parse_tweets(author: &str, input: &str) -> Vec<Tweet> {
+pub fn parse_tweets(author: &str, avatar: Handle, input: &str) -> Vec<Tweet> {
     input
         .lines()
         .filter_map(|line| {
@@ -46,6 +53,7 @@ pub fn parse_tweets(author: &str, input: &str) -> Vec<Tweet> {
                     Some(Tweet {
                         timestamp: DateTime::parse_from_rfc3339(parts[0]).ok()?.to_utc(),
                         author: author.to_string(),
+                        avatar: avatar.clone(),
                         content: parts[1].to_string(),
                     })
                 } else {
@@ -96,9 +104,13 @@ where
         }
 
         let content = rich_text(spans).on_link_click(on_link);
+        let avatar_img = Image::new(tweet.avatar.clone())
+            .width(Length::Fixed(48.0))
+            .height(Length::Fixed(48.0))
+            .border_radius(24);
 
         col = col.push(
-            container(column![header, content].spacing(4))
+            container(row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6))
                 .padding(4)
                 .width(Length::Fill),
         );
@@ -106,12 +118,6 @@ where
 
     col
 }
-
-use bytes::Bytes;
-use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct CacheMetadata {
@@ -145,7 +151,7 @@ fn get_cache_paths(url: &str) -> (PathBuf, PathBuf) {
     hasher.update(url.as_bytes());
     let hash = hex::encode(hasher.finalize());
 
-    let mut dir = PathBuf::from("cache");
+    let dir = PathBuf::from("cache");
     let _ = std::fs::create_dir_all(&dir);
 
     let mut data_path = dir.clone();

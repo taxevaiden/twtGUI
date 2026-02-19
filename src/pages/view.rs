@@ -17,7 +17,6 @@ use crate::{app::RedirectInfo, config::AppConfig};
 
 pub struct ViewPage {
     composer: String,
-    avatar_url: String,
     avatar_bytes: Bytes,
     fetched: String,
     tweets: Vec<Tweet>,
@@ -37,7 +36,6 @@ impl ViewPage {
     pub fn new(config: &AppConfig) -> Self {
         Self {
             composer: config.settings.twturl.clone(),
-            avatar_url: String::new(),
             avatar_bytes: Bytes::new(),
             fetched: String::new(),
             tweets: Vec::new(),
@@ -54,10 +52,9 @@ impl ViewPage {
 
             Message::ViewPressed => {
                 self.tweets.clear();
-                self.avatar_url = String::new();
                 self.avatar_bytes = Bytes::new();
-                self.fetched = String::new();
-                println!("Downloading...");
+                self.fetched.clear();
+
                 Task::perform(
                     download_file(self.composer.clone()),
                     Message::FeedDownloadFinished,
@@ -65,34 +62,21 @@ impl ViewPage {
             }
 
             Message::FeedDownloadFinished(Ok(data)) => {
-                println!("{}", data);
-
                 self.fetched = data;
                 let data = &self.fetched;
 
                 self.metadata = parse_metadata(data);
 
-                if let Some(nick) = self.metadata.as_ref().and_then(|m| m.get("nick")) {
-                    self.tweets = parse_tweets(nick, data);
-                } else {
-                    let host = url::Url::parse(&self.composer)
-                        .ok()
-                        .and_then(|url| url.host_str().map(str::to_string))
-                        .unwrap_or_else(|| "unknown".to_string());
-                    self.tweets = parse_tweets(&host, data);
-                }
-
-                self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
                 if let Some(avatar) = self.metadata.as_ref().and_then(|m| m.get("avatar")) {
-                    self.avatar_url = avatar.clone();
-                    Task::perform(
-                        download_binary(self.avatar_url.clone()),
+                    // Download avatar first
+                    return Task::perform(
+                        download_binary(avatar.to_string()),
                         Message::AvatarDownloadFinished,
-                    )
-                } else {
-                    Task::none()
+                    );
                 }
+
+                self.build_tweets();
+                Task::none()
             }
 
             Message::FeedDownloadFinished(Err(e)) => {
@@ -103,11 +87,12 @@ impl ViewPage {
 
             Message::AvatarDownloadFinished(Ok(data)) => {
                 self.avatar_bytes = data;
+                self.build_tweets();
                 Task::none()
             }
 
-            Message::AvatarDownloadFinished(Err(e)) => {
-                println!("{}", e);
+            Message::AvatarDownloadFinished(Err(_)) => {
+                self.build_tweets();
                 Task::none()
             }
 
@@ -166,5 +151,26 @@ impl ViewPage {
             }
             _ => Task::none(),
         }
+    }
+
+    fn build_tweets(&mut self) {
+        let data = &self.fetched;
+
+        let nick = self
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("nick"))
+            .cloned()
+            .unwrap_or_else(|| {
+                url::Url::parse(&self.composer)
+                    .ok()
+                    .and_then(|url| url.host_str().map(str::to_string))
+                    .unwrap_or_else(|| "unknown".to_string())
+            });
+
+        let handle = Handle::from_bytes(self.avatar_bytes.clone());
+
+        self.tweets = parse_tweets(&nick, handle, data);
+        self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
     }
 }
