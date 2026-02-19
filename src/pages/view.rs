@@ -1,32 +1,47 @@
+use std::collections::HashMap;
+
+use bytes::Bytes;
 use iced::{
     Element, Length, Task,
-    widget::{button, column, row, scrollable, text_input},
+    widget::{
+        button, column,
+        image::{self, Handle},
+        row, scrollable, text, text_input,
+    },
 };
 
-use crate::config::AppConfig;
-use crate::utils::{Tweet, build_timeline, download_file, parse_twtxt};
+use crate::utils::{
+    Tweet, build_feed, download_binary, download_file, parse_metadata, parse_tweets,
+};
+use crate::{app::RedirectInfo, config::AppConfig};
 
 pub struct ViewPage {
     composer: String,
-    success: bool,
+    avatar_url: String,
+    avatar_bytes: Bytes,
     fetched: String,
     tweets: Vec<Tweet>,
+    metadata: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     ComposerChanged(String),
     ViewPressed,
-    DownloadFinished(Result<String, String>),
+    FeedDownloadFinished(Result<String, String>),
+    AvatarDownloadFinished(Result<Bytes, String>),
+    LinkClicked(String),
 }
 
 impl ViewPage {
     pub fn new(config: &AppConfig) -> Self {
         Self {
             composer: config.settings.twturl.clone(),
-            success: false,
+            avatar_url: String::new(),
+            avatar_bytes: Bytes::new(),
             fetched: String::new(),
             tweets: Vec::new(),
+            metadata: None,
         }
     }
 
@@ -39,47 +54,92 @@ impl ViewPage {
 
             Message::ViewPressed => {
                 self.tweets.clear();
+                self.avatar_url = String::new();
+                self.avatar_bytes = Bytes::new();
                 self.fetched = String::new();
-                self.success = false;
                 println!("Downloading...");
                 Task::perform(
                     download_file(self.composer.clone()),
-                    Message::DownloadFinished,
+                    Message::FeedDownloadFinished,
                 )
             }
 
-            Message::DownloadFinished(Ok(data)) => {
-                self.success = true;
-                self.fetched = data.clone();
+            Message::FeedDownloadFinished(Ok(data)) => {
                 println!("{}", data);
-                if let Ok(url) = url::Url::parse(&self.composer.clone()) {
-                    if let Some(host) = url.host_str() {
-                        println!("Host: {}", host);
-                        self.tweets = parse_twtxt(host, data.as_str());
-                    } else {
-                        self.tweets = parse_twtxt("unknown", data.as_str());
-                    }
+
+                self.fetched = data;
+                let data = &self.fetched;
+
+                self.metadata = parse_metadata(data);
+
+                if let Some(nick) = self.metadata.as_ref().and_then(|m| m.get("nick")) {
+                    self.tweets = parse_tweets(nick, data);
                 } else {
-                    self.tweets = parse_twtxt("unknown", data.as_str());
+                    let host = url::Url::parse(&self.composer)
+                        .ok()
+                        .and_then(|url| url.host_str().map(str::to_string))
+                        .unwrap_or_else(|| "unknown".to_string());
+                    self.tweets = parse_tweets(&host, data);
                 }
 
                 self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-                Task::none()
+
+                if let Some(avatar) = self.metadata.as_ref().and_then(|m| m.get("avatar")) {
+                    self.avatar_url = avatar.clone();
+                    Task::perform(
+                        download_binary(self.avatar_url.clone()),
+                        Message::AvatarDownloadFinished,
+                    )
+                } else {
+                    Task::none()
+                }
             }
 
-            Message::DownloadFinished(Err(e)) => {
-                self.success = false;
+            Message::FeedDownloadFinished(Err(e)) => {
                 self.fetched = format!("Error: {}", e);
                 println!("{}", e);
                 Task::none()
+            }
+
+            Message::AvatarDownloadFinished(Ok(data)) => {
+                self.avatar_bytes = data;
+                Task::none()
+            }
+
+            Message::AvatarDownloadFinished(Err(e)) => {
+                println!("{}", e);
+                Task::none()
+            }
+
+            Message::LinkClicked(url) => {
+                if url.contains("twtxt") && url.ends_with(".txt") {
+                    self.process_redirect_info(RedirectInfo {
+                        page: crate::app::Page::View,
+                        content: url.clone(),
+                    })
+                } else {
+                    // Open the URL in the default browser
+                    if let Err(err) = webbrowser::open(&url) {
+                        println!("Error opening URL: {}", err);
+                    }
+                    Task::none()
+                }
             }
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let timeline = build_timeline(&self.tweets);
+        let image = image::Image::new(Handle::from_bytes(self.avatar_bytes.clone()));
+        let timeline = build_feed(&self.tweets, Message::LinkClicked);
+        let mut col = column!().spacing(8);
 
-        let scroll = scrollable(timeline).height(iced::Length::Fill);
+        if let Some(metadata) = &self.metadata {
+            for (name, value) in metadata {
+                col = col.push(text(format!("{}: {}", name, value)));
+            }
+        }
+
+        let scroll = scrollable(column![col, image, timeline]).height(iced::Length::Fill);
 
         let composer = row![
             text_input("https://example.com/twtxt.txt", &self.composer)
@@ -96,5 +156,15 @@ impl ViewPage {
             .height(Length::Fill)
             .spacing(8)
             .into()
+    }
+
+    pub fn process_redirect_info(&mut self, info: crate::app::RedirectInfo) -> Task<Message> {
+        match info.page {
+            crate::app::Page::View => {
+                self.composer = info.content;
+                Task::done(Message::ViewPressed)
+            }
+            _ => Task::none(),
+        }
     }
 }

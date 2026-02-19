@@ -15,6 +15,9 @@ fn main() -> iced::Result {
         })
         .font(include_bytes!("../assets/fonts/iosevka-aile.ttf").as_slice())
         .font(include_bytes!("../assets/fonts/iosevka-aile-bold.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/iosevka-aile-italic.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/iosevka-aile-italic-bold.ttf").as_slice())
         .default_font(font::Font::with_name("Iosevka Aile"))
+        .theme(iced::Theme::CatppuccinMocha)
         .run()
 }

@@ -7,8 +7,8 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
-use crate::utils::{Tweet, download_file, parse_twtxt};
-use crate::{config::AppConfig, utils::build_timeline};
+use crate::utils::{Tweet, download_file, parse_tweets};
+use crate::{config::AppConfig, utils::build_feed};
 
 pub struct TimelinePage {
     composer: String,
@@ -24,6 +24,8 @@ pub enum Message {
         nick: String,
         result: Result<String, String>,
     },
+    LinkClicked(String),
+    RedirectToPage(crate::app::RedirectInfo),
 }
 
 impl TimelinePage {
@@ -50,7 +52,7 @@ impl TimelinePage {
 
             Message::DownloadFinished { nick, result } => match result {
                 Ok(content) => {
-                    let fetched = parse_twtxt(nick.as_str(), content.as_str());
+                    let fetched = parse_tweets(nick.as_str(), content.as_str());
                     self.tweets.extend(fetched);
 
                     self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
@@ -61,6 +63,23 @@ impl TimelinePage {
                     Task::none()
                 }
             },
+
+            Message::LinkClicked(url) => {
+                if url.contains("twtxt") && url.ends_with(".txt") {
+                    Task::done(Message::RedirectToPage(crate::app::RedirectInfo {
+                        page: crate::app::Page::View,
+                        content: url.clone(),
+                    }))
+                } else {
+                    // Open the URL in the default browser
+                    if let Err(err) = webbrowser::open(&url) {
+                        println!("Error opening URL: {}", err);
+                    }
+                    Task::none()
+                }
+            }
+
+            Message::RedirectToPage(info) => Task::done(Message::RedirectToPage(info)),
         }
     }
 
@@ -69,7 +88,7 @@ impl TimelinePage {
 
         let path = Path::new(&config.settings.twtxt);
         if let Ok(content) = std::fs::read_to_string(path) {
-            self.tweets = parse_twtxt(&config.settings.nick.as_str(), content.as_str()).clone();
+            self.tweets = parse_tweets(&config.settings.nick.as_str(), content.as_str()).clone();
 
             self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         };
@@ -116,7 +135,7 @@ impl TimelinePage {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let timeline = build_timeline(&self.tweets);
+        let timeline = build_feed(&self.tweets, Message::LinkClicked);
 
         let scroll = scrollable(timeline).height(iced::Length::Fill);
 

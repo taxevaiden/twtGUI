@@ -1,6 +1,6 @@
 use iced::{
     Element, Task,
-    widget::{button, column, row},
+    widget::{button, column, container, row},
 };
 
 use crate::config::AppConfig;
@@ -24,12 +24,20 @@ pub enum Message {
     Following(following::Message),
 }
 
-#[derive(Default)]
-enum Page {
+#[derive(Debug, Clone, Default)]
+pub enum Page {
     #[default]
     Timeline,
     View,
     Following,
+}
+
+#[derive(Debug, Clone)]
+pub struct RedirectInfo {
+    pub page: Page,
+
+    // This information is specific to the ViewPage, however this is written in a way that it should be easy to implement this for other pages
+    pub content: String,
 }
 
 impl TwtxtApp {
@@ -61,6 +69,14 @@ impl TwtxtApp {
                 Task::none()
             }
 
+            Message::Timeline(timeline::Message::RedirectToPage(info)) => {
+                self.page = info.page.clone();
+                match self.page {
+                    Page::View => self.view.process_redirect_info(info).map(Message::View),
+                    _ => Task::none(),
+                }
+            }
+
             Message::Timeline(msg) => self
                 .timeline
                 .update(msg, &self.config)
@@ -87,7 +103,8 @@ impl TwtxtApp {
                 .on_press(Message::SwitchToFollowing)
                 .padding([8, 16]),
         ]
-        .spacing(8);
+        .spacing(8)
+        .padding(8);
 
         let content = match self.page {
             Page::Timeline => self.timeline.view().map(Message::Timeline),
@@ -95,7 +112,7 @@ impl TwtxtApp {
             Page::Following => self.following.view(&self.config).map(Message::Following),
         };
 
-        column![nav, content].spacing(8).padding(8).into()
+        column![nav, container(content).padding(8)].into()
     }
 }
 
