@@ -2,19 +2,24 @@ use bytes::Bytes;
 use chrono::Utc;
 use iced::{
     Alignment, Element, Length, Task,
-    widget::{button, column, image::Handle, row, scrollable, text, text_input},
+    widget::{button, column, image::Handle, row, text, text_input},
 };
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
-use crate::utils::{Tweet, download_binary, download_file, parse_metadata, parse_tweets};
-use crate::{config::AppConfig, utils::build_feed};
+use crate::components::feed::{self, VirtualTimeline};
+use crate::config::AppConfig;
+use crate::utils::{
+    Tweet, compute_twt_hash, download_binary, download_file, parse_metadata, parse_tweets,
+};
 
 pub struct TimelinePage {
     composer: String,
     tweets: Vec<Tweet>,
     local_avatar: Option<Handle>,
+    pending_downloads: usize,
+    feed: VirtualTimeline,
 }
 
 #[derive(Debug, Clone)]
@@ -24,15 +29,17 @@ pub enum Message {
     Refresh,
     DownloadFinished {
         nick: String,
+        url: String,
         result: Result<String, String>,
     },
     AvatarDownloadFinished {
         nick: String,
+        url: String,
         content: String,
         result: Result<Bytes, String>,
     },
-    LinkClicked(String),
     RedirectToPage(crate::app::RedirectInfo),
+    Feed(feed::Message),
 }
 
 impl TimelinePage {
@@ -41,6 +48,8 @@ impl TimelinePage {
             composer: String::new(),
             tweets: Vec::new(),
             local_avatar: None,
+            pending_downloads: 0,
+            feed: VirtualTimeline::new(0),
         }
     }
 
@@ -58,29 +67,38 @@ impl TimelinePage {
 
             Message::Refresh => self.refresh_timeline(config),
 
-            Message::DownloadFinished { nick, result } => match result {
+            Message::DownloadFinished { nick, url, result } => match result {
                 Ok(content) => {
-                    let metadata = parse_metadata(&content);
+                    self.pending_downloads -= 1;
 
-                    if let Some(avatar_url) = metadata.as_ref().and_then(|m| m.get("avatar")) {
-                        return Task::perform(download_binary(avatar_url.to_string()), {
-                            let nick = nick.clone();
-                            let content = content.clone();
-                            move |result| Message::AvatarDownloadFinished {
-                                nick,
-                                content,
-                                result,
-                            }
-                        });
+                    if let Some(metadata) = parse_metadata(&content) {
+                        if let Some(avatar_url) = metadata.avatar {
+                            self.pending_downloads += 1;
+                            return Task::perform(download_binary(avatar_url.to_string()), {
+                                let nick = nick.clone();
+                                let content = content.clone();
+                                let url = url.clone();
+                                move |result| Message::AvatarDownloadFinished {
+                                    nick,
+                                    url,
+                                    content,
+                                    result,
+                                }
+                            });
+                        }
                     }
 
                     // No avatar → just parse normally
-                    let fetched = parse_tweets(&nick, Handle::from_bytes(Bytes::new()), &content);
+                    let fetched = parse_tweets(&nick, &url, None, &content);
                     self.tweets.extend(fetched);
-                    self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                    if self.pending_downloads == 0 {
+                        self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                        self.feed.reset(self.tweets.len());
+                    }
                     Task::none()
                 }
                 Err(err) => {
+                    self.pending_downloads -= 1;
                     println!("Error downloading: {}", err);
                     Task::none()
                 }
@@ -89,8 +107,10 @@ impl TimelinePage {
             Message::AvatarDownloadFinished {
                 nick,
                 content,
+                url,
                 result,
             } => {
+                self.pending_downloads -= 1;
                 let avatar_bytes = match result {
                     Ok(bytes) => bytes,
                     Err(err) => {
@@ -105,27 +125,21 @@ impl TimelinePage {
                     self.local_avatar = Some(handle.clone());
                 }
 
-                let fetched = parse_tweets(&nick, handle, &content);
+                let fetched = parse_tweets(&nick, &url, Some(handle), &content);
                 self.tweets.extend(fetched);
-                self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                if self.pending_downloads == 0 {
+                    self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                    self.feed.reset(self.tweets.len());
+                }
 
                 Task::none()
             }
 
-            Message::LinkClicked(url) => {
-                if url.contains("twtxt") && url.ends_with(".txt") {
-                    Task::done(Message::RedirectToPage(crate::app::RedirectInfo {
-                        page: crate::app::Page::View,
-                        content: url.clone(),
-                    }))
-                } else {
-                    // Open the URL in the default browser
-                    if let Err(err) = webbrowser::open(&url) {
-                        println!("Error opening URL: {}", err);
-                    }
-                    Task::none()
-                }
+            Message::Feed(feed::Message::RedirectToPage(info)) => {
+                Task::done(Message::RedirectToPage(info))
             }
+
+            Message::Feed(msg) => self.feed.update(msg, self.tweets.len()).map(Message::Feed),
 
             Message::RedirectToPage(info) => Task::done(Message::RedirectToPage(info)),
         }
@@ -133,30 +147,46 @@ impl TimelinePage {
 
     fn refresh_timeline(&mut self, config: &AppConfig) -> Task<Message> {
         self.tweets.clear();
+        self.feed.reset(0);
+        self.pending_downloads = 0;
 
         let mut tasks = Vec::new();
 
         let path = Path::new(&config.settings.twtxt);
 
         if let Ok(content) = std::fs::read_to_string(path) {
-            let metadata = parse_metadata(&content);
+            if let Some(metadata) = parse_metadata(&content) {
+                if let Some(avatar_url) = metadata.avatar {
+                    // Download avatar first, then parse tweets
+                    tasks.push(Task::perform(download_binary(avatar_url), {
+                        let content = content.clone();
+                        let nick = config.settings.nick.clone();
+                        let url = config.settings.twturl.clone();
+                        move |result| Message::AvatarDownloadFinished {
+                            nick,
+                            url,
+                            content,
+                            result,
+                        }
+                    }));
+                    self.pending_downloads += 1;
+                } else {
+                    // No avatar → parse immediately
+                    let fetched = parse_tweets(
+                        &config.settings.nick,
+                        &config.settings.twturl,
+                        None,
+                        &content,
+                    );
 
-            if let Some(avatar_url) = metadata.as_ref().and_then(|m| m.get("avatar")) {
-                // Download avatar first, then parse tweets
-                tasks.push(Task::perform(download_binary(avatar_url.to_string()), {
-                    let content = content.clone();
-                    let nick = config.settings.nick.clone();
-                    move |result| Message::AvatarDownloadFinished {
-                        nick,
-                        content,
-                        result,
-                    }
-                }));
+                    self.tweets.extend(fetched);
+                }
             } else {
                 // No avatar → parse immediately
                 let fetched = parse_tweets(
                     &config.settings.nick,
-                    Handle::from_bytes(Bytes::new()),
+                    &config.settings.twturl,
+                    None,
                     &content,
                 );
 
@@ -169,8 +199,14 @@ impl TimelinePage {
             for (key, value) in following {
                 tasks.push(Task::perform(download_file(value.to_string()), {
                     let key = key.clone();
-                    move |result| Message::DownloadFinished { nick: key, result }
+                    let value = value.clone();
+                    move |result| Message::DownloadFinished {
+                        nick: key,
+                        url: value,
+                        result,
+                    }
                 }));
+                self.pending_downloads += 1;
             }
         }
 
@@ -194,8 +230,14 @@ impl TimelinePage {
         self.tweets.insert(
             0,
             Tweet {
+                hash: compute_twt_hash(
+                    &config.settings.nick,
+                    &now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                    &self.composer,
+                ),
                 timestamp: now,
                 author: config.settings.nick.clone(),
+                url: config.settings.twturl.clone(),
                 avatar,
                 content: self.composer.clone(),
             },
@@ -206,15 +248,19 @@ impl TimelinePage {
             .open(&config.settings.twtxt)
             .unwrap();
 
-        writeln!(file, "{}\t{}", now.to_rfc3339(), self.composer).ok();
+        writeln!(
+            file,
+            "{}\t{}",
+            now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            self.composer
+        )
+        .ok();
 
         self.composer.clear();
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let timeline = build_feed(&self.tweets, Message::LinkClicked);
-
-        let scroll = scrollable(timeline).height(iced::Length::Fill);
+        let scroll = self.feed.view(&self.tweets).map(Message::Feed);
 
         let composer = row![
             text_input("What's on your mind?", &self.composer)
@@ -231,7 +277,11 @@ impl TimelinePage {
                 .align_x(Alignment::Center)
                 .width(Length::Fill),
         )
-        .on_press(Message::Refresh)
+        .on_press_maybe(if self.pending_downloads == 0 {
+            Some(Message::Refresh)
+        } else {
+            None
+        })
         .width(Length::Fill)
         .padding([8, 16]);
 

@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-
 use chrono::{DateTime, Local, Utc};
+use data_encoding::BASE32_NOPAD;
 use iced::{
     Color, Length, font,
-    widget::{Column, Image, column, container, image::Handle, rich_text, row, span, text},
+    widget::{Column, Image, column, container, image::Handle, rich_text, row, span},
 };
 
 use bytes::Bytes;
@@ -14,54 +13,166 @@ use std::path::PathBuf;
 
 #[derive(Clone)]
 pub struct Tweet {
+    pub hash: String,
     pub timestamp: DateTime<Utc>,
+    pub url: String,
     pub author: String,
     pub avatar: Handle,
     pub content: String,
 }
 
-pub fn parse_metadata(input: &str) -> Option<HashMap<String, String>> {
-    let map: HashMap<String, String> = input
-        .lines()
-        .filter_map(|line| {
-            if line.starts_with('#') {
-                let parts: Vec<&str> = line.splitn(2, '=').collect();
-                if parts.len() == 2 {
-                    Some((
-                        parts[0].trim_start_matches('#').trim().to_string(),
-                        parts[1].trim().to_string(),
-                    ))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    if map.is_empty() { None } else { Some(map) }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Follow {
+    pub nick: String,
+    pub url: String,
 }
 
-pub fn parse_tweets(author: &str, avatar: Handle, input: &str) -> Vec<Tweet> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Link {
+    pub text: String,
+    pub url: String,
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Metadata {
+    pub urls: Vec<String>, // the url(s) of the feed. if the url(s) do not match the url that the user entered in the ViewPage, we should warn the user. we don't redirect them for security reasons
+    pub nick: Option<String>,
+    pub avatar: Option<String>,
+    pub description: Option<String>,
+    pub kind: Option<String>, // `type` field, could be "bot" or "rss" (if empty, we assume it's a human managed account)
+    pub follows: Vec<Follow>,
+    pub following: Option<u64>, // number of people they follow; this isn't really needed since we can just do follows.len()
+    pub links: Vec<Link>, // urls on their profile (ex. My Github Page: https://github.com/username)
+    pub prev: Vec<String>,
+    pub refresh: Option<u64>,
+}
+
+// timestamp must be formatted as RFC3339, with the time truncated/expanded to seconds precision
+// it also has to be formatted using the Zulu indicator (Z)
+
+pub fn compute_twt_hash(feed_url: &str, timestamp: &str, text: &str) -> String {
+    use blake2::{
+        Blake2bVar,
+        digest::{Update, VariableOutput},
+    };
+
+    let payload = format!("{feed_url}\n{timestamp}\n{text}");
+
+    let mut hasher = Blake2bVar::new(32).unwrap();
+    hasher.update(payload.as_bytes());
+    let mut result = vec![0u8; 32];
+    hasher.finalize_variable(&mut result).unwrap();
+
+    let encoded = BASE32_NOPAD.encode(&result).to_lowercase();
+
+    encoded
+        .chars()
+        .rev()
+        .take(7)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect()
+}
+
+pub fn parse_metadata(input: &str) -> Option<Metadata> {
+    let mut metadata = Metadata::default();
+
+    for line in input.lines() {
+        let Some(stripped) = line.strip_prefix('#') else {
+            continue;
+        };
+        let Some((key, value)) = stripped.split_once('=') else {
+            continue;
+        };
+
+        let key = key.trim();
+        let value = value.trim();
+
+        match key {
+            "url" => metadata.urls.push(value.to_string()),
+
+            "nick" => metadata.nick = Some(value.to_string()),
+
+            "avatar" => metadata.avatar = Some(value.to_string()),
+
+            "description" => metadata.description = Some(value.to_string()),
+
+            "type" => metadata.kind = Some(value.to_string()),
+
+            "follow" => {
+                // format: nick url
+                if let Some((nick, url)) = value.rsplit_once(' ') {
+                    metadata.follows.push(Follow {
+                        nick: nick.trim().to_string(),
+                        url: url.trim().to_string(),
+                    });
+                }
+            }
+
+            "following" => {
+                if let Ok(num) = value.parse::<u64>() {
+                    metadata.following = Some(num);
+                }
+            }
+
+            "link" => {
+                // format: text url
+                if let Some((text, url)) = value.rsplit_once(' ') {
+                    metadata.links.push(Link {
+                        text: text.trim().to_string(),
+                        url: url.trim().to_string(),
+                    });
+                }
+            }
+
+            "prev" => metadata.prev.push(value.to_string()),
+
+            "refresh" => {
+                if let Ok(num) = value.parse::<u64>() {
+                    metadata.refresh = Some(num);
+                }
+            }
+
+            _ => {
+                // Ignore unknown keys (future extensions)
+            }
+        }
+    }
+
+    // Return None if nothing was actually parsed
+    if metadata == Metadata::default() {
+        None
+    } else {
+        Some(metadata)
+    }
+}
+
+pub fn parse_tweets(author: &str, url: &str, avatar: Option<Handle>, input: &str) -> Vec<Tweet> {
+    let author = author.to_string();
+
     input
         .lines()
         .filter_map(|line| {
-            if !line.starts_with("#") {
-                let parts: Vec<&str> = line.splitn(2, '\t').collect();
-                if parts.len() == 2 {
-                    Some(Tweet {
-                        timestamp: DateTime::parse_from_rfc3339(parts[0]).ok()?.to_utc(),
-                        author: author.to_string(),
-                        avatar: avatar.clone(),
-                        content: parts[1].to_string(),
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
+            if line.starts_with('#') {
+                return None;
             }
+
+            let (timestamp, content) = line.split_once('\t')?;
+
+            Some(Tweet {
+                // we should use the url specified in the feed's metadata instead of using the one provided,
+                // as it may be different from the one provided (and one slight difference can lead to a *completely different* hash!)
+                // for now though, we can just assume it's the same
+                hash: compute_twt_hash(&url, &timestamp, &content),
+                timestamp: DateTime::parse_from_rfc3339(timestamp).ok()?.to_utc(),
+                author: author.clone(),
+                url: url.to_string(),
+                avatar: avatar
+                    .clone()
+                    .unwrap_or(Handle::from_path("assets/default_avatar.png")),
+                content: content.to_string(),
+            })
         })
         .collect()
 }
@@ -82,7 +193,15 @@ where
             .with_timezone(&Local)
             .format("%h %-d %Y %-I:%M %p");
 
-        let header = text(format!("{} - {}", tweet.author, formatted_time)).font(bold);
+        let header = rich_text![
+            span(&tweet.author).font(bold).link(tweet.url.clone()),
+            span(" - "),
+            span(formatted_time.to_string()),
+            // just for debugging
+            span(" "),
+            span(tweet.hash.clone())
+        ]
+        .on_link_click(on_link);
 
         let mut spans = Vec::new();
 
@@ -93,7 +212,6 @@ where
                 spans.push(
                     span(word)
                         .link(word.to_string())
-                        .underline(true)
                         .color(Color::from_rgb(0.4, 0.6, 1.0)),
                 );
             } else {
@@ -105,9 +223,9 @@ where
 
         let content = rich_text(spans).on_link_click(on_link);
         let avatar_img = Image::new(tweet.avatar.clone())
-            .width(Length::Fixed(48.0))
-            .height(Length::Fixed(48.0))
-            .border_radius(24);
+            .width(Length::Fixed(40.0))
+            .height(Length::Fixed(40.0))
+            .border_radius(20);
 
         col = col.push(
             container(row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6))
@@ -146,6 +264,7 @@ fn get_cache_path(url: &str) -> PathBuf {
     path
 }
 
+// Used for download_binary
 fn get_cache_paths(url: &str) -> (PathBuf, PathBuf) {
     let mut hasher = Sha256::new();
     hasher.update(url.as_bytes());
@@ -247,14 +366,14 @@ pub async fn download_file(url: String) -> Result<String, String> {
 
     let response = request.send().await.map_err(|e| e.to_string())?;
 
-    // 3. 304 Not Modified
+    // 304 Not Modified
     if response.status() == reqwest::StatusCode::NOT_MODIFIED {
         return cached_data
             .map(|e| e.content)
             .ok_or_else(|| "Server returned 304 but no local file found".to_string());
     }
 
-    // 4. 200 OK
+    // 200 OK
     let etag = response
         .headers()
         .get(ETAG)

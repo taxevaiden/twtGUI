@@ -82,6 +82,14 @@ impl TwtxtApp {
                 .update(msg, &self.config)
                 .map(Message::Timeline),
 
+            Message::View(view::Message::RedirectToPage(info)) => {
+                self.page = info.page.clone();
+                match self.page {
+                    Page::View => self.view.process_redirect_info(info).map(Message::View),
+                    _ => Task::none(),
+                }
+            }
+
             Message::View(msg) => self.view.update(msg).map(Message::View),
 
             Message::Following(msg) => {
