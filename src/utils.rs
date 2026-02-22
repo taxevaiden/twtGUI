@@ -2,7 +2,7 @@ use chrono::{DateTime, Local, Utc};
 use data_encoding::BASE32_NOPAD;
 use iced::{
     Color, Length, font,
-    widget::{Column, Image, column, container, image::Handle, rich_text, row, span},
+    widget::{Column, Image, column, container, image::Handle, rich_text, row, space, span},
 };
 
 use bytes::Bytes;
@@ -14,6 +14,7 @@ use std::path::PathBuf;
 #[derive(Clone)]
 pub struct Tweet {
     pub hash: String,
+    pub reply_to: Option<String>, // reply is a tweet hash, defined by something like (#abc1234) at the beginning of the tweet
     pub timestamp: DateTime<Utc>,
     pub url: String,
     pub author: String,
@@ -134,9 +135,7 @@ pub fn parse_metadata(input: &str) -> Option<Metadata> {
                 }
             }
 
-            _ => {
-                // Ignore unknown keys (future extensions)
-            }
+            _ => {}
         }
     }
 
@@ -160,11 +159,23 @@ pub fn parse_tweets(author: &str, url: &str, avatar: Option<Handle>, input: &str
 
             let (timestamp, content) = line.split_once('\t')?;
 
+            let reply_to = content
+                .split_whitespace()
+                .find(|word| word.starts_with("(#") && word.ends_with(")"))
+                .map(|word| {
+                    word.strip_prefix("(#")
+                        .unwrap()
+                        .strip_suffix(")")
+                        .unwrap()
+                        .to_string()
+                });
+
             Some(Tweet {
                 // we should use the url specified in the feed's metadata instead of using the one provided,
                 // as it may be different from the one provided (and one slight difference can lead to a *completely different* hash!)
                 // for now though, we can just assume it's the same
                 hash: compute_twt_hash(&url, &timestamp, &content),
+                reply_to,
                 timestamp: DateTime::parse_from_rfc3339(timestamp).ok()?.to_utc(),
                 author: author.clone(),
                 url: url.to_string(),
@@ -182,10 +193,18 @@ where
     M: 'a,
     F: Fn(String) -> M + Copy + 'a,
 {
+    use std::collections::HashMap;
+
     let mut col = column!().spacing(8);
 
     let mut bold = font::Font::with_name("Iosevka Aile");
     bold.weight = font::Weight::Bold;
+
+    // Build lookup map
+    let mut map: HashMap<&str, &Tweet> = HashMap::new();
+    for tweet in tweets {
+        map.insert(&tweet.hash, tweet);
+    }
 
     for tweet in tweets {
         let formatted_time = tweet
@@ -197,7 +216,6 @@ where
             span(&tweet.author).font(bold).link(tweet.url.clone()),
             span(" - "),
             span(formatted_time.to_string()),
-            // just for debugging
             span(" "),
             span(tweet.hash.clone())
         ]
@@ -222,16 +240,51 @@ where
         }
 
         let content = rich_text(spans).on_link_click(on_link);
+
         let avatar_img = Image::new(tweet.avatar.clone())
             .width(Length::Fixed(40.0))
             .height(Length::Fixed(40.0))
             .border_radius(20);
 
-        col = col.push(
-            container(row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6))
+        if let Some(reply) = tweet.reply_to.as_ref() {
+            if let Some(reply_twt) = map.get(reply.as_str()) {
+                let reply_author = reply_twt.author.clone();
+                let reply_content = reply_twt.content.clone();
+                col = col.push(
+                    column![
+                        row![
+                            space().width(64),
+                            rich_text![
+                                span("Reply to "),
+                                span(reply_author).font(bold).link(reply_twt.url.clone()),
+                                span(": "),
+                                span(reply_content)
+                            ]
+                            .on_link_click(on_link)
+                        ],
+                        row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6),
+                    ]
+                    .padding(4)
+                    .width(Length::Fill),
+                );
+            } else {
+                col = col.push(
+                    container(
+                        row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6),
+                    )
+                    .padding(4)
+                    .width(Length::Fill),
+                );
+            }
+        } else {
+            col = col.push(
+                container(
+                    row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6),
+                )
                 .padding(4)
                 .width(Length::Fill),
-        );
+            );
+        }
     }
 
     col
@@ -250,7 +303,7 @@ struct CacheEntry {
 }
 
 // Used for download_file
-fn get_cache_path(url: &str) -> PathBuf {
+fn get_txt_cache_path(url: &str) -> PathBuf {
     let mut hasher = Sha256::new();
     hasher.update(url.as_bytes());
     let hash = hex::encode(hasher.finalize());
@@ -265,7 +318,7 @@ fn get_cache_path(url: &str) -> PathBuf {
 }
 
 // Used for download_binary
-fn get_cache_paths(url: &str) -> (PathBuf, PathBuf) {
+fn get_bin_cache_paths(url: &str) -> (PathBuf, PathBuf) {
     let mut hasher = Sha256::new();
     hasher.update(url.as_bytes());
     let hash = hex::encode(hasher.finalize());
@@ -290,7 +343,7 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let (data_path, meta_path) = get_cache_paths(&url);
+    let (data_path, meta_path) = get_bin_cache_paths(&url);
 
     let metadata: Option<CacheMetadata> = std::fs::read_to_string(&meta_path)
         .ok()
@@ -340,7 +393,8 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
     Ok(data)
 }
 
-pub async fn download_file(url: String) -> Result<String, String> {
+pub async fn download_twtxt(url: String) -> Result<String, String> {
+    println!("Downloading twtxt.txt from {}", url);
     static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
     let client = reqwest::Client::builder()
@@ -348,7 +402,7 @@ pub async fn download_file(url: String) -> Result<String, String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let cache_path = get_cache_path(&url);
+    let cache_path = get_txt_cache_path(&url);
 
     let cached_data: Option<CacheEntry> = std::fs::read_to_string(&cache_path)
         .ok()
@@ -368,6 +422,7 @@ pub async fn download_file(url: String) -> Result<String, String> {
 
     // 304 Not Modified
     if response.status() == reqwest::StatusCode::NOT_MODIFIED {
+        println!("304 Not Modified: {}", url);
         return cached_data
             .map(|e| e.content)
             .ok_or_else(|| "Server returned 304 but no local file found".to_string());
@@ -387,6 +442,8 @@ pub async fn download_file(url: String) -> Result<String, String> {
         .map(|s| s.to_string());
 
     let content = response.text().await.map_err(|e| e.to_string())?;
+
+    println!("200 OK: {}", url);
 
     let new_entry = CacheEntry {
         content: content.clone(),

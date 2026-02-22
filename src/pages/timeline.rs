@@ -11,7 +11,7 @@ use std::path::Path;
 use crate::components::feed::{self, VirtualTimeline};
 use crate::config::AppConfig;
 use crate::utils::{
-    Tweet, compute_twt_hash, download_binary, download_file, parse_metadata, parse_tweets,
+    Tweet, compute_twt_hash, download_binary, download_twtxt, parse_metadata, parse_tweets,
 };
 
 pub struct TimelinePage {
@@ -197,7 +197,7 @@ impl TimelinePage {
         // Spawn tasks to download following twtxts
         if let Some(following) = config.following.as_ref() {
             for (key, value) in following {
-                tasks.push(Task::perform(download_file(value.to_string()), {
+                tasks.push(Task::perform(download_twtxt(value.to_string()), {
                     let key = key.clone();
                     let value = value.clone();
                     move |result| Message::DownloadFinished {
@@ -235,6 +235,7 @@ impl TimelinePage {
                     &now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                     &self.composer,
                 ),
+                reply_to: None,
                 timestamp: now,
                 author: config.settings.nick.clone(),
                 url: config.settings.twturl.clone(),

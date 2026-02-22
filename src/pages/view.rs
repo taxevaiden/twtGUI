@@ -10,7 +10,9 @@ use iced::{
 
 use crate::components::feed::{self, VirtualTimeline};
 use crate::config::AppConfig;
-use crate::utils::{Metadata, Tweet, download_binary, download_file, parse_metadata, parse_tweets};
+use crate::utils::{
+    Metadata, Tweet, download_binary, download_twtxt, parse_metadata, parse_tweets,
+};
 
 pub struct ViewPage {
     composer: String,
@@ -67,7 +69,7 @@ impl ViewPage {
                 self.pending_downloads = 1;
                 self.feed.reset(0);
 
-                Task::perform(download_file(self.composer.clone()), {
+                Task::perform(download_twtxt(self.composer.clone()), {
                     let url = self.composer.clone();
                     move |result| Message::FeedDownloadFinished { url, result }
                 })
