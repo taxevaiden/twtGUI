@@ -10,14 +10,11 @@ use iced::{
 
 use crate::components::feed::{self, VirtualTimeline};
 use crate::config::AppConfig;
-use crate::utils::{
-    Metadata, Tweet, download_binary, download_twtxt, parse_metadata, parse_tweets,
-};
+use crate::utils::{FeedBundle, Metadata, Tweet, download_and_parse_twtxt, download_binary};
 
 pub struct ViewPage {
     composer: String,
     avatar_bytes: Option<Handle>,
-    fetched: String,
     tweets: Vec<Tweet>,
     metadata: Option<Metadata>,
     pending_downloads: usize,
@@ -28,11 +25,11 @@ pub struct ViewPage {
 pub enum Message {
     ComposerChanged(String),
     ViewPressed,
-    FeedDownloadFinished {
+    FeedLoaded {
         url: String,
-        result: Result<String, String>,
+        result: Result<FeedBundle, String>,
     },
-    AvatarDownloadFinished {
+    AvatarLoaded {
         url: String,
         result: Result<Bytes, String>,
     },
@@ -46,7 +43,6 @@ impl ViewPage {
         Self {
             composer: config.settings.twturl.clone(),
             avatar_bytes: None,
-            fetched: String::new(),
             tweets: Vec::new(),
             metadata: None,
             pending_downloads: 0,
@@ -62,74 +58,79 @@ impl ViewPage {
             }
 
             Message::ViewPressed => {
-                self.avatar_bytes = None;
-                self.fetched.clear();
                 self.tweets.clear();
                 self.metadata = None;
+                self.avatar_bytes = None;
                 self.pending_downloads = 1;
                 self.feed.reset(0);
 
-                Task::perform(download_twtxt(self.composer.clone()), {
-                    let url = self.composer.clone();
-                    move |result| Message::FeedDownloadFinished { url, result }
-                })
+                let url = self.composer.clone();
+
+                Task::perform(
+                    download_and_parse_twtxt("unknown".into(), url.clone()),
+                    move |result| Message::FeedLoaded { url, result },
+                )
             }
 
-            Message::FeedDownloadFinished { url, result } => match result {
-                Ok(data) => {
-                    self.pending_downloads -= 1;
+            Message::FeedLoaded { url, result } => {
+                self.pending_downloads -= 1;
 
-                    self.fetched = data;
-                    let data = &self.fetched;
+                match result {
+                    Ok(bundle) => {
+                        self.metadata = bundle.metadata.clone();
+                        self.tweets = bundle.tweets;
 
-                    self.metadata = parse_metadata(data);
+                        self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                        self.feed.reset(self.tweets.len());
 
-                    if let Some(metadata) = self.metadata.as_ref() {
-                        if let Some(avatar_url) = metadata.avatar.clone() {
-                            self.pending_downloads += 1;
-                            return Task::perform(download_binary(avatar_url), {
-                                let url = self.composer.clone();
-                                move |result| Message::AvatarDownloadFinished { url, result }
-                            });
+                        // Download avatar if present
+                        if let Some(meta) = bundle.metadata {
+                            if let Some(avatar_url) = meta.avatar {
+                                self.pending_downloads += 1;
+                                return Task::perform(download_binary(avatar_url), move |res| {
+                                    Message::AvatarLoaded {
+                                        url: url.clone(),
+                                        result: res,
+                                    }
+                                });
+                            }
                         }
                     }
 
-                    self.build_tweets(&url);
-                    Task::none()
+                    Err(e) => {
+                        println!("Error: {}", e);
+                    }
                 }
-                Err(e) => {
-                    self.pending_downloads -= 1;
-                    self.fetched = format!("Error: {}", e);
-                    println!("{}", e);
-                    Task::none()
-                }
-            },
 
-            Message::AvatarDownloadFinished { url, result } => match result {
-                Ok(data) => {
-                    self.pending_downloads -= 1;
-                    self.avatar_bytes = Some(Handle::from_bytes(data));
-                    self.build_tweets(&url);
-                    Task::none()
+                Task::none()
+            }
+
+            Message::AvatarLoaded { url, result } => {
+                self.pending_downloads -= 1;
+
+                if let Ok(bytes) = result {
+                    let handle = Handle::from_bytes(bytes);
+                    self.avatar_bytes = Some(handle.clone());
+
+                    // Patch tweets
+                    for tweet in self.tweets.iter_mut() {
+                        if tweet.url == url {
+                            tweet.avatar = handle.clone();
+                        }
+                    }
                 }
-                Err(_) => {
-                    self.pending_downloads -= 1;
-                    self.build_tweets(&url);
-                    Task::none()
-                }
-            },
+
+                Task::none()
+            }
 
             Message::LinkClicked(url) => {
                 if url.contains("twtxt") && url.ends_with(".txt") {
                     Task::done(Message::RedirectToPage(crate::app::RedirectInfo {
                         page: crate::app::Page::View,
-                        content: url.clone(),
+                        content: url,
                     }))
                 } else {
-                    // Open the URL in the default browser
-                    if let Err(err) = webbrowser::open(&url) {
-                        println!("Error opening URL: {}", err);
-                    }
+                    let _ = webbrowser::open(&url);
                     Task::none()
                 }
             }
@@ -257,25 +258,5 @@ impl ViewPage {
             }
             _ => Task::none(),
         }
-    }
-
-    fn build_tweets(&mut self, url: &str) {
-        let data = &self.fetched;
-
-        let nick = self
-            .metadata
-            .as_ref()
-            .and_then(|m| m.nick.as_ref())
-            .cloned()
-            .unwrap_or_else(|| {
-                url::Url::parse(&self.composer)
-                    .ok()
-                    .and_then(|url| url.host_str().map(str::to_string))
-                    .unwrap_or_else(|| "unknown".to_string())
-            });
-
-        self.tweets = parse_tweets(&nick, url, self.avatar_bytes.clone(), data);
-        self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        self.feed.reset(self.tweets.len());
     }
 }

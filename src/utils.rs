@@ -2,9 +2,7 @@ use chrono::{DateTime, Local, Utc};
 use data_encoding::BASE32_NOPAD;
 use iced::{
     Color, Length, font,
-    widget::{
-        Column, Image, column, container, image::Handle, rich_text, row, space, span, text::Span,
-    },
+    widget::{Column, Image, column, container, image::Handle, rich_text, row, space, span},
 };
 use regex;
 
@@ -14,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tweet {
     pub hash: String,
     pub reply_to: Option<String>, // reply is a tweet hash, defined by something like (#abc1234) at the beginning of the tweet
@@ -22,23 +20,25 @@ pub struct Tweet {
     pub timestamp: DateTime<Utc>,
     pub url: String,
     pub author: String,
-    pub avatar: Handle,
     pub content: String,
+
+    #[serde(skip, default = "default_avatar")]
+    pub avatar: Handle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Link {
     pub text: String,
     pub url: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OptLink {
     pub text: Option<String>,
     pub url: String,
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Metadata {
     pub urls: Vec<String>, // the url(s) of the feed. if the url(s) do not match the url that the user entered in the ViewPage, we should warn the user. we don't redirect them for security reasons
     pub nick: Option<String>,
@@ -50,6 +50,28 @@ pub struct Metadata {
     pub links: Vec<Link>, // urls on their profile (ex. My Github Page: https://github.com/username)
     pub prev: Vec<String>,
     pub refresh: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeedBundle {
+    pub tweets: Vec<Tweet>,
+    pub metadata: Option<Metadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ParsedCache {
+    content_hash: String,
+    bundle: FeedBundle,
+}
+
+fn default_avatar() -> Handle {
+    Handle::from_path("assets/default_avatar.png")
+}
+
+fn hash_sha256_str(s: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(s.as_bytes());
+    hex::encode(hasher.finalize())
 }
 
 // timestamp must be formatted as RFC3339, with the time truncated/expanded to seconds precision
@@ -406,9 +428,7 @@ struct CacheEntry {
 
 // Used for download_file
 fn get_txt_cache_path(url: &str) -> PathBuf {
-    let mut hasher = Sha256::new();
-    hasher.update(url.as_bytes());
-    let hash = hex::encode(hasher.finalize());
+    let hash = hash_sha256_str(url);
 
     let mut path = PathBuf::from("cache");
     if !path.exists() {
@@ -421,9 +441,7 @@ fn get_txt_cache_path(url: &str) -> PathBuf {
 
 // Used for download_binary
 fn get_bin_cache_paths(url: &str) -> (PathBuf, PathBuf) {
-    let mut hasher = Sha256::new();
-    hasher.update(url.as_bytes());
-    let hash = hex::encode(hasher.finalize());
+    let hash = hash_sha256_str(url);
 
     let dir = PathBuf::from("cache");
     let _ = std::fs::create_dir_all(&dir);
@@ -435,6 +453,17 @@ fn get_bin_cache_paths(url: &str) -> (PathBuf, PathBuf) {
     meta_path.push(format!("{}.meta", hash));
 
     (data_path, meta_path)
+}
+
+fn get_parsed_cache_path(url: &str) -> PathBuf {
+    let mut hasher = Sha256::new();
+    hasher.update(url.as_bytes());
+    let hash = hex::encode(hasher.finalize());
+
+    let mut path = PathBuf::from("cache");
+    let _ = std::fs::create_dir_all(&path);
+    path.push(format!("{}.parsed.json", hash));
+    path
 }
 
 pub async fn download_binary(url: String) -> Result<Bytes, String> {
@@ -559,4 +588,44 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
     std::fs::write(cache_path, serialized).map_err(|e| e.to_string())?;
 
     Ok(content)
+}
+
+pub async fn download_and_parse_twtxt(nick: String, url: String) -> Result<FeedBundle, String> {
+    let raw = download_twtxt(url.clone()).await?;
+    let raw_hash = hash_sha256_str(&raw);
+    let parsed_path = get_parsed_cache_path(&url);
+
+    // check parsed cache
+    if let Ok(cached_str) = std::fs::read_to_string(&parsed_path) {
+        if let Ok(cache) = serde_json::from_str::<ParsedCache>(&cached_str) {
+            if cache.content_hash == raw_hash {
+                return Ok(cache.bundle);
+            }
+        }
+    }
+
+    let metadata = parse_metadata(&raw);
+    let display_nick = metadata
+        .as_ref()
+        .and_then(|m| m.nick.as_ref())
+        .cloned()
+        .unwrap_or_else(|| {
+            url::Url::parse(&url)
+                .ok()
+                .and_then(|u| u.host_str().map(str::to_string))
+                .unwrap_or_else(|| nick)
+        });
+
+    let tweets = parse_tweets(&display_nick, &url, None, &raw);
+
+    let bundle = FeedBundle { tweets, metadata };
+
+    let cache = ParsedCache {
+        content_hash: raw_hash,
+        bundle: bundle.clone(),
+    };
+
+    std::fs::write(parsed_path, serde_json::to_string(&cache).unwrap()).ok();
+
+    Ok(bundle)
 }

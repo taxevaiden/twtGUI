@@ -6,13 +6,12 @@ use iced::{
 };
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::Path;
 
 use crate::components::feed::{self, VirtualTimeline};
 use crate::config::AppConfig;
 use crate::utils::{
-    Tweet, compute_twt_hash, download_binary, download_twtxt, parse_metadata, parse_tweets,
-    parse_twt_contents,
+    FeedBundle, Tweet, compute_twt_hash, download_and_parse_twtxt, download_binary, parse_metadata,
+    parse_tweets, parse_twt_contents,
 };
 
 pub struct TimelinePage {
@@ -28,15 +27,13 @@ pub enum Message {
     ComposerChanged(String),
     PostPressed,
     Refresh,
-    DownloadFinished {
+    FeedLoaded {
         nick: String,
         url: String,
-        result: Result<String, String>,
+        result: Result<FeedBundle, String>,
     },
-    AvatarDownloadFinished {
-        nick: String,
-        url: String,
-        content: String,
+    AvatarLoaded {
+        url: String, // The URL of the feed these tweets belong to
         result: Result<Bytes, String>,
     },
     RedirectToPage(crate::app::RedirectInfo),
@@ -66,74 +63,86 @@ impl TimelinePage {
                 Task::none()
             }
 
-            Message::Refresh => self.refresh_timeline(config),
+            Message::Refresh => {
+                self.tweets.clear();
+                self.feed.reset(0);
 
-            Message::DownloadFinished { nick, url, result } => match result {
-                Ok(content) => {
-                    self.pending_downloads -= 1;
+                let mut tasks = Vec::new();
 
-                    if let Some(metadata) = parse_metadata(&content) {
-                        if let Some(avatar_url) = metadata.avatar {
-                            self.pending_downloads += 1;
-                            return Task::perform(download_binary(avatar_url.to_string()), {
-                                let nick = nick.clone();
-                                let content = content.clone();
-                                let url = url.clone();
-                                move |result| Message::AvatarDownloadFinished {
-                                    nick,
-                                    url,
-                                    content,
-                                    result,
+                // handle local file
+                let path = std::path::Path::new(&config.settings.twtxt);
+                if let Ok(content) = std::fs::read_to_string(path) {
+                    let bundle = FeedBundle {
+                        metadata: parse_metadata(&content),
+                        tweets: parse_tweets(
+                            &config.settings.nick,
+                            &config.settings.twturl,
+                            None,
+                            &content,
+                        ),
+                    };
+                    tasks.push(Task::done(Message::FeedLoaded {
+                        nick: config.settings.nick.clone(),
+                        url: config.settings.twturl.clone(),
+                        result: Ok(bundle),
+                    }));
+                }
+
+                // handle following
+                if let Some(following) = config.following.as_ref() {
+                    for (nick, url) in following {
+                        self.pending_downloads += 1;
+                        // THis is terrible but ill fix later lmao
+                        let follow_nick = nick.clone();
+                        let follow_url = url.clone();
+                        tasks.push(Task::perform(
+                            download_and_parse_twtxt(follow_nick.clone(), follow_url.clone()),
+                            move |result| Message::FeedLoaded {
+                                nick: follow_nick.clone(),
+                                url: follow_url.clone(),
+                                result,
+                            },
+                        ));
+                    }
+                }
+                Task::batch(tasks)
+            }
+
+            Message::FeedLoaded { nick, url, result } => {
+                if let Ok(bundle) = result {
+                    self.tweets.extend(bundle.tweets);
+                    self.sort_and_refresh();
+
+                    // trigger avatar download if available
+                    if let Some(meta) = bundle.metadata {
+                        if let Some(avatar_url) = meta.avatar {
+                            return Task::perform(download_binary(avatar_url), move |res| {
+                                Message::AvatarLoaded {
+                                    url: url.clone(),
+                                    result: res,
                                 }
                             });
                         }
                     }
+                }
+                self.decrement_pending()
+            }
 
-                    // No avatar → just parse normally
-                    let fetched = parse_tweets(&nick, &url, None, &content);
-                    self.tweets.extend(fetched);
-                    if self.pending_downloads == 0 {
-                        self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-                        self.feed.reset(self.tweets.len());
+            Message::AvatarLoaded { url, result } => {
+                if let Ok(bytes) = result {
+                    let new_handle = Handle::from_bytes(bytes);
+
+                    // "patch" existing tweets that match this feed URL
+                    for tweet in self.tweets.iter_mut() {
+                        if tweet.url == url {
+                            tweet.avatar = new_handle.clone();
+                            if tweet.url == config.settings.twturl {
+                                self.local_avatar = Some(new_handle.clone());
+                            }
+                        }
                     }
-                    Task::none()
                 }
-                Err(err) => {
-                    self.pending_downloads -= 1;
-                    println!("Error downloading: {}", err);
-                    Task::none()
-                }
-            },
-
-            Message::AvatarDownloadFinished {
-                nick,
-                content,
-                url,
-                result,
-            } => {
-                self.pending_downloads -= 1;
-                let avatar_bytes = match result {
-                    Ok(bytes) => bytes,
-                    Err(err) => {
-                        println!("Avatar download failed: {}", err);
-                        Bytes::new()
-                    }
-                };
-
-                let handle = Handle::from_bytes(avatar_bytes);
-
-                if nick == config.settings.nick {
-                    self.local_avatar = Some(handle.clone());
-                }
-
-                let fetched = parse_tweets(&nick, &url, Some(handle), &content);
-                self.tweets.extend(fetched);
-                if self.pending_downloads == 0 {
-                    self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-                    self.feed.reset(self.tweets.len());
-                }
-
-                Task::none()
+                self.decrement_pending()
             }
 
             Message::Feed(feed::Message::RedirectToPage(info)) => {
@@ -146,74 +155,16 @@ impl TimelinePage {
         }
     }
 
-    fn refresh_timeline(&mut self, config: &AppConfig) -> Task<Message> {
-        self.tweets.clear();
-        self.feed.reset(0);
-        self.pending_downloads = 0;
-
-        let mut tasks = Vec::new();
-
-        let path = Path::new(&config.settings.twtxt);
-
-        if let Ok(content) = std::fs::read_to_string(path) {
-            if let Some(metadata) = parse_metadata(&content) {
-                if let Some(avatar_url) = metadata.avatar {
-                    // Download avatar first, then parse tweets
-                    tasks.push(Task::perform(download_binary(avatar_url), {
-                        let content = content.clone();
-                        let nick = config.settings.nick.clone();
-                        let url = config.settings.twturl.clone();
-                        move |result| Message::AvatarDownloadFinished {
-                            nick,
-                            url,
-                            content,
-                            result,
-                        }
-                    }));
-                    self.pending_downloads += 1;
-                } else {
-                    // No avatar → parse immediately
-                    let fetched = parse_tweets(
-                        &config.settings.nick,
-                        &config.settings.twturl,
-                        None,
-                        &content,
-                    );
-
-                    self.tweets.extend(fetched);
-                }
-            } else {
-                // No avatar → parse immediately
-                let fetched = parse_tweets(
-                    &config.settings.nick,
-                    &config.settings.twturl,
-                    None,
-                    &content,
-                );
-
-                self.tweets.extend(fetched);
-            }
-        }
-
-        // Spawn tasks to download following twtxts
-        if let Some(following) = config.following.as_ref() {
-            for (key, value) in following {
-                tasks.push(Task::perform(download_twtxt(value.to_string()), {
-                    let key = key.clone();
-                    let value = value.clone();
-                    move |result| Message::DownloadFinished {
-                        nick: key,
-                        url: value,
-                        result,
-                    }
-                }));
-                self.pending_downloads += 1;
-            }
-        }
-
+    fn sort_and_refresh(&mut self) {
         self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        self.feed.reset(self.tweets.len());
+    }
 
-        Task::batch(tasks)
+    fn decrement_pending(&mut self) -> Task<Message> {
+        if self.pending_downloads > 0 {
+            self.pending_downloads -= 1;
+        }
+        Task::none()
     }
 
     fn send_tweet(&mut self, config: &AppConfig) {
