@@ -2,8 +2,11 @@ use chrono::{DateTime, Local, Utc};
 use data_encoding::BASE32_NOPAD;
 use iced::{
     Color, Length, font,
-    widget::{Column, Image, column, container, image::Handle, rich_text, row, space, span},
+    widget::{
+        Column, Image, column, container, image::Handle, rich_text, row, space, span, text::Span,
+    },
 };
+use regex;
 
 use bytes::Bytes;
 use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
@@ -15,6 +18,7 @@ use std::path::PathBuf;
 pub struct Tweet {
     pub hash: String,
     pub reply_to: Option<String>, // reply is a tweet hash, defined by something like (#abc1234) at the beginning of the tweet
+    pub mentions: Vec<OptLink>,
     pub timestamp: DateTime<Utc>,
     pub url: String,
     pub author: String,
@@ -23,14 +27,14 @@ pub struct Tweet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Follow {
-    pub nick: String,
+pub struct Link {
+    pub text: String,
     pub url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Link {
-    pub text: String,
+pub struct OptLink {
+    pub text: Option<String>,
     pub url: String,
 }
 
@@ -41,7 +45,7 @@ pub struct Metadata {
     pub avatar: Option<String>,
     pub description: Option<String>,
     pub kind: Option<String>, // `type` field, could be "bot" or "rss" (if empty, we assume it's a human managed account)
-    pub follows: Vec<Follow>,
+    pub follows: Vec<Link>,
     pub following: Option<u64>, // number of people they follow; this isn't really needed since we can just do follows.len()
     pub links: Vec<Link>, // urls on their profile (ex. My Github Page: https://github.com/username)
     pub prev: Vec<String>,
@@ -76,6 +80,89 @@ pub fn compute_twt_hash(feed_url: &str, timestamp: &str, text: &str) -> String {
         .collect()
 }
 
+pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, Vec<OptLink>, String) {
+    let mention_re = regex::Regex::new(r"@<(?P<first>[^\s>]+)(?:\s+(?P<second>[^>]+))?>").unwrap();
+    let subject_re = regex::Regex::new(r"^\(#(?P<hash>[^)]+)\)").unwrap();
+
+    let mut reply_to = None;
+    let mut mentions = Vec::new();
+    let mut display_content = String::new();
+    let mut current_pos = 0;
+    let mut subject_found = false;
+
+    // prefix pass (hashes, first couple mentions)
+    while current_pos < raw_content.len() {
+        let remaining = &raw_content[current_pos..];
+        let trimmed = remaining.trim_start();
+        current_pos += remaining.len() - trimmed.len();
+
+        let fragment = &raw_content[current_pos..];
+        if fragment.is_empty() {
+            break;
+        }
+
+        // try matching a mention at the current start
+        if let Some(cap) = mention_re.captures(fragment) {
+            let first = cap.name("first").map(|m| m.as_str()).unwrap();
+            let second = cap.name("second").map(|m| m.as_str());
+
+            mentions.push(OptLink {
+                text: second.map(|_| first.trim().to_string()),
+                url: second.unwrap_or(first).trim().to_string(),
+            });
+
+            if second.is_some() {
+                display_content.push_str(&format!("@{} ", first));
+            } else {
+                display_content.push_str(&format!("{} ", first));
+            }
+
+            current_pos += cap.get(0).unwrap().end();
+            continue;
+        }
+
+        // try matching hash at the current start
+        if !subject_found {
+            if let Some(cap) = subject_re.captures(fragment) {
+                reply_to = Some(cap.name("hash").unwrap().as_str().to_string());
+                subject_found = true;
+                current_pos += cap.get(0).unwrap().end();
+                continue;
+            }
+        }
+
+        break;
+    }
+
+    let body = &raw_content[current_pos..];
+    let mut last_end = 0;
+
+    // second pass (all mentions throughout body)
+    for cap in mention_re.captures_iter(body) {
+        let whole_match = cap.get(0).unwrap();
+        display_content.push_str(&body[last_end..whole_match.start()]);
+
+        let first = cap.name("first").map(|m| m.as_str()).unwrap();
+        let second = cap.name("second").map(|m| m.as_str());
+
+        mentions.push(OptLink {
+            text: second.map(|_| first.trim().to_string()),
+            url: second.unwrap_or(first).trim().to_string(),
+        });
+
+        if second.is_some() {
+            display_content.push_str(&format!("@{}", first));
+        } else {
+            display_content.push_str(first);
+        }
+
+        last_end = whole_match.end();
+    }
+    display_content.push_str(&body[last_end..]);
+
+    (reply_to, mentions, display_content.trim().to_string())
+}
+
 pub fn parse_metadata(input: &str) -> Option<Metadata> {
     let mut metadata = Metadata::default();
 
@@ -104,8 +191,8 @@ pub fn parse_metadata(input: &str) -> Option<Metadata> {
             "follow" => {
                 // format: nick url
                 if let Some((nick, url)) = value.rsplit_once(' ') {
-                    metadata.follows.push(Follow {
-                        nick: nick.trim().to_string(),
+                    metadata.follows.push(Link {
+                        text: nick.trim().to_string(),
                         url: url.trim().to_string(),
                     });
                 }
@@ -148,41 +235,29 @@ pub fn parse_metadata(input: &str) -> Option<Metadata> {
 }
 
 pub fn parse_tweets(author: &str, url: &str, avatar: Option<Handle>, input: &str) -> Vec<Tweet> {
-    let author = author.to_string();
+    let author_name = author.to_string();
 
     input
         .lines()
+        .filter(|line| !line.starts_with('#'))
         .filter_map(|line| {
-            if line.starts_with('#') {
-                return None;
-            }
-
-            let (timestamp, content) = line.split_once('\t')?;
-
-            let reply_to = content
-                .split_whitespace()
-                .find(|word| word.starts_with("(#") && word.ends_with(")"))
-                .map(|word| {
-                    word.strip_prefix("(#")
-                        .unwrap()
-                        .strip_suffix(")")
-                        .unwrap()
-                        .to_string()
-                });
+            let (timestamp_str, raw_content) = line.split_once('\t')?;
+            let (reply_to, mentions, display_content) = parse_twt_contents(raw_content);
 
             Some(Tweet {
-                // we should use the url specified in the feed's metadata instead of using the one provided,
-                // as it may be different from the one provided (and one slight difference can lead to a *completely different* hash!)
-                // for now though, we can just assume it's the same
-                hash: compute_twt_hash(&url, &timestamp, &content),
+                hash: compute_twt_hash(url, timestamp_str, raw_content),
                 reply_to,
-                timestamp: DateTime::parse_from_rfc3339(timestamp).ok()?.to_utc(),
-                author: author.clone(),
+                mentions,
+                timestamp: DateTime::parse_from_rfc3339(timestamp_str)
+                    .ok()?
+                    .with_timezone(&Utc),
+                author: author_name.clone(),
                 url: url.to_string(),
                 avatar: avatar
                     .clone()
-                    .unwrap_or(Handle::from_path("assets/default_avatar.png")),
-                content: content.to_string(),
+                    .unwrap_or_else(|| Handle::from_path("assets/default_avatar.png")),
+                // Use the cleaned version for the UI
+                content: display_content.trim().to_string(),
             })
         })
         .collect()
@@ -225,6 +300,7 @@ where
 
         for word in tweet.content.split_whitespace() {
             let is_link = word.starts_with("http://") || word.starts_with("https://");
+            let is_mention = word.starts_with("@");
 
             if is_link {
                 spans.push(
@@ -232,10 +308,36 @@ where
                         .link(word.to_string())
                         .color(Color::from_rgb(0.4, 0.6, 1.0)),
                 );
-            } else {
-                spans.push(span(word));
+
+                continue;
             }
 
+            if is_mention {
+                let mention_str = word.trim_start_matches('@');
+                for mention in &tweet.mentions {
+                    if let Some(word) = mention.text.clone() {
+                        if word == mention_str {
+                            spans.push(
+                                span(format!("@{} ", word))
+                                    .link(mention.url.clone())
+                                    .color(Color::from_rgb(0.4, 0.6, 1.0)),
+                            );
+                        }
+                    } else {
+                        if mention.url.clone() == mention_str {
+                            spans.push(
+                                span(format!("@{} ", mention.url.clone()))
+                                    .link(mention.url.clone())
+                                    .color(Color::from_rgb(0.4, 0.6, 1.0)),
+                            );
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            spans.push(span(word));
             spans.push(span(" "));
         }
 

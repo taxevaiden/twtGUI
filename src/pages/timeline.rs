@@ -12,6 +12,7 @@ use crate::components::feed::{self, VirtualTimeline};
 use crate::config::AppConfig;
 use crate::utils::{
     Tweet, compute_twt_hash, download_binary, download_twtxt, parse_metadata, parse_tweets,
+    parse_twt_contents,
 };
 
 pub struct TimelinePage {
@@ -227,6 +228,8 @@ impl TimelinePage {
             .clone()
             .unwrap_or_else(|| Handle::from_bytes(Bytes::new()));
 
+        let (reply_to, mentions, display_content) = parse_twt_contents(&self.composer);
+
         self.tweets.insert(
             0,
             Tweet {
@@ -235,12 +238,13 @@ impl TimelinePage {
                     &now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                     &self.composer,
                 ),
-                reply_to: None,
+                reply_to,
+                mentions,
                 timestamp: now,
                 author: config.settings.nick.clone(),
                 url: config.settings.twturl.clone(),
                 avatar,
-                content: self.composer.clone(),
+                content: display_content,
             },
         );
 
