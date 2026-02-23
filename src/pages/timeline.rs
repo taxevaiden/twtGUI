@@ -96,7 +96,7 @@ impl TimelinePage {
                         let follow_nick = nick.clone();
                         let follow_url = url.clone();
                         tasks.push(Task::perform(
-                            download_and_parse_twtxt(follow_nick.clone(), follow_url.clone()),
+                            download_and_parse_twtxt(follow_nick.clone(), follow_url.clone(), true),
                             move |result| Message::FeedLoaded {
                                 nick: follow_nick.clone(),
                                 url: follow_url.clone(),
@@ -108,7 +108,11 @@ impl TimelinePage {
                 Task::batch(tasks)
             }
 
-            Message::FeedLoaded { nick, url, result } => {
+            Message::FeedLoaded {
+                nick: _,
+                url,
+                result,
+            } => {
                 if let Ok(bundle) = result {
                     self.tweets.extend(bundle.tweets);
                     self.sort_and_refresh();

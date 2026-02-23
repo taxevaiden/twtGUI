@@ -67,7 +67,7 @@ impl ViewPage {
                 let url = self.composer.clone();
 
                 Task::perform(
-                    download_and_parse_twtxt("unknown".into(), url.clone()),
+                    download_and_parse_twtxt("unknown".into(), url.clone(), false),
                     move |result| Message::FeedLoaded { url, result },
                 )
             }

@@ -330,6 +330,7 @@ where
                         .link(word.to_string())
                         .color(Color::from_rgb(0.4, 0.6, 1.0)),
                 );
+                spans.push(span(" "));
 
                 continue;
             }
@@ -340,18 +341,20 @@ where
                     if let Some(word) = mention.text.clone() {
                         if word == mention_str {
                             spans.push(
-                                span(format!("@{} ", word))
+                                span(format!("@{}", word))
                                     .link(mention.url.clone())
                                     .color(Color::from_rgb(0.4, 0.6, 1.0)),
                             );
+                            spans.push(span(" "));
                         }
                     } else {
                         if mention.url.clone() == mention_str {
                             spans.push(
-                                span(format!("@{} ", mention.url.clone()))
+                                span(format!("@{}", mention.url.clone()))
                                     .link(mention.url.clone())
                                     .color(Color::from_rgb(0.4, 0.6, 1.0)),
                             );
+                            spans.push(span(" "));
                         }
                     }
                 }
@@ -456,9 +459,7 @@ fn get_bin_cache_paths(url: &str) -> (PathBuf, PathBuf) {
 }
 
 fn get_parsed_cache_path(url: &str) -> PathBuf {
-    let mut hasher = Sha256::new();
-    hasher.update(url.as_bytes());
-    let hash = hex::encode(hasher.finalize());
+    let hash = hash_sha256_str(url);
 
     let mut path = PathBuf::from("cache");
     let _ = std::fs::create_dir_all(&path);
@@ -590,22 +591,28 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
     Ok(content)
 }
 
-pub async fn download_and_parse_twtxt(nick: String, url: String) -> Result<FeedBundle, String> {
+// use_nick determines whether the nick provided should be used as the actual display name, or just a fallback if there is no nick in the metadata
+// this nick should NOT be in the cache, only the nick provided by the feed's metadata
+pub async fn download_and_parse_twtxt(
+    nick: String,
+    url: String,
+    use_nick: bool,
+) -> Result<FeedBundle, String> {
     let raw = download_twtxt(url.clone()).await?;
     let raw_hash = hash_sha256_str(&raw);
     let parsed_path = get_parsed_cache_path(&url);
 
-    // check parsed cache
     if let Ok(cached_str) = std::fs::read_to_string(&parsed_path) {
         if let Ok(cache) = serde_json::from_str::<ParsedCache>(&cached_str) {
             if cache.content_hash == raw_hash {
-                return Ok(cache.bundle);
+                return Ok(apply_nick_override(cache.bundle, &nick, use_nick));
             }
         }
     }
 
     let metadata = parse_metadata(&raw);
-    let display_nick = metadata
+
+    let canonical_nick = metadata
         .as_ref()
         .and_then(|m| m.nick.as_ref())
         .cloned()
@@ -613,19 +620,29 @@ pub async fn download_and_parse_twtxt(nick: String, url: String) -> Result<FeedB
             url::Url::parse(&url)
                 .ok()
                 .and_then(|u| u.host_str().map(str::to_string))
-                .unwrap_or_else(|| nick)
+                .unwrap_or_else(|| nick.clone())
         });
 
-    let tweets = parse_tweets(&display_nick, &url, None, &raw);
+    let tweets = parse_tweets(&canonical_nick, &url, None, &raw);
 
-    let bundle = FeedBundle { tweets, metadata };
+    let canonical_bundle = FeedBundle { tweets, metadata };
 
     let cache = ParsedCache {
         content_hash: raw_hash,
-        bundle: bundle.clone(),
+        bundle: canonical_bundle.clone(),
     };
 
-    std::fs::write(parsed_path, serde_json::to_string(&cache).unwrap()).ok();
+    let _ = std::fs::write(parsed_path, serde_json::to_string(&cache).unwrap());
 
-    Ok(bundle)
+    Ok(apply_nick_override(canonical_bundle, &nick, use_nick))
+}
+
+fn apply_nick_override(mut bundle: FeedBundle, nick: &str, use_nick: bool) -> FeedBundle {
+    if use_nick {
+        for tweet in &mut bundle.tweets {
+            tweet.author = nick.to_string();
+        }
+    }
+
+    bundle
 }
