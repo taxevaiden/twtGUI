@@ -12,6 +12,19 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
+use directories::ProjectDirs;
+
+fn cache_root() -> Result<PathBuf, String> {
+    let proj = ProjectDirs::from("com", "taxevaiden", "twtGUI")
+        .ok_or("Could not determine project directories")?;
+
+    let dir = proj.cache_dir();
+
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+
+    Ok(dir.to_path_buf())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tweet {
     pub hash: String,
@@ -430,41 +443,33 @@ struct CacheEntry {
 }
 
 // Used for download_file
-fn get_txt_cache_path(url: &str) -> PathBuf {
+fn get_txt_cache_path(url: &str) -> Result<PathBuf, String> {
     let hash = hash_sha256_str(url);
-
-    let mut path = PathBuf::from("cache");
-    if !path.exists() {
-        let _ = std::fs::create_dir_all(&path);
-    }
-    path.push(hash);
-    path.set_extension("json");
-    path
+    let mut path = cache_root()?;
+    path.push(format!("{hash}.json"));
+    Ok(path)
 }
 
 // Used for download_binary
-fn get_bin_cache_paths(url: &str) -> (PathBuf, PathBuf) {
+fn get_bin_cache_paths(url: &str) -> Result<(PathBuf, PathBuf), String> {
     let hash = hash_sha256_str(url);
-
-    let dir = PathBuf::from("cache");
-    let _ = std::fs::create_dir_all(&dir);
+    let dir = cache_root()?;
 
     let mut data_path = dir.clone();
-    data_path.push(format!("{}.bin", hash));
+    data_path.push(format!("{hash}.bin"));
 
     let mut meta_path = dir;
-    meta_path.push(format!("{}.meta", hash));
+    meta_path.push(format!("{hash}.meta"));
 
-    (data_path, meta_path)
+    Ok((data_path, meta_path))
 }
 
-fn get_parsed_cache_path(url: &str) -> PathBuf {
+// Used for download_and_parse_twtxt
+fn get_parsed_cache_path(url: &str) -> Result<PathBuf, String> {
     let hash = hash_sha256_str(url);
-
-    let mut path = PathBuf::from("cache");
-    let _ = std::fs::create_dir_all(&path);
-    path.push(format!("{}.parsed.json", hash));
-    path
+    let mut path = cache_root()?;
+    path.push(format!("{hash}.parsed.json"));
+    Ok(path)
 }
 
 pub async fn download_binary(url: String) -> Result<Bytes, String> {
@@ -475,7 +480,7 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let (data_path, meta_path) = get_bin_cache_paths(&url);
+    let (data_path, meta_path) = get_bin_cache_paths(&url)?;
 
     let metadata: Option<CacheMetadata> = std::fs::read_to_string(&meta_path)
         .ok()
@@ -534,7 +539,7 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let cache_path = get_txt_cache_path(&url);
+    let cache_path = get_txt_cache_path(&url)?;
 
     let cached_data: Option<CacheEntry> = std::fs::read_to_string(&cache_path)
         .ok()
@@ -600,7 +605,7 @@ pub async fn download_and_parse_twtxt(
 ) -> Result<FeedBundle, String> {
     let raw = download_twtxt(url.clone()).await?;
     let raw_hash = hash_sha256_str(&raw);
-    let parsed_path = get_parsed_cache_path(&url);
+    let parsed_path = get_parsed_cache_path(&url)?;
 
     if let Ok(cached_str) = std::fs::read_to_string(&parsed_path) {
         if let Ok(cache) = serde_json::from_str::<ParsedCache>(&cached_str) {

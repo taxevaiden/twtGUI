@@ -1,6 +1,17 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
+
+use directories::ProjectDirs;
+use std::path::PathBuf;
+
+fn config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let proj = ProjectDirs::from("com", "taxevaiden", "twtGUI")
+        .ok_or("Could not determine config directory")?;
+
+    let dir = proj.config_dir();
+    std::fs::create_dir_all(dir)?;
+
+    Ok(dir.join("config.ini"))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -17,15 +28,25 @@ pub struct Settings {
 
 impl AppConfig {
     pub fn load() -> Self {
-        let path = Path::new("config.ini");
+        let path = config_path().expect("Failed to determine config path");
 
+        // Create default config if missing
         if !path.exists() {
-            fs::create_dir_all(path.parent().unwrap()).ok();
-            fs::write(path, "shegoncallmebabyboo").unwrap();
+            let default = AppConfig {
+                settings: Settings {
+                    nick: "anon".into(),
+                    twtxt: "".into(),
+                    twturl: "".into(),
+                },
+                following: None,
+            };
+
+            default.save().expect("Failed to create default config");
+            return default;
         }
 
         let settings = config::Config::builder()
-            .add_source(config::File::with_name("config"))
+            .add_source(config::File::from(path.clone()))
             .build()
             .expect("Failed to load config");
 
@@ -33,15 +54,15 @@ impl AppConfig {
     }
 
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let path = config_path()?;
+
         let mut ini = ini::Ini::new();
 
-        // Settings section
         ini.with_section(Some("settings"))
             .set("nick", &self.settings.nick)
             .set("twtxt", &self.settings.twtxt)
             .set("twturl", &self.settings.twturl);
 
-        // Following section
         if let Some(following) = &self.following {
             let mut section = ini.with_section(Some("following"));
             for (name, url) in following {
@@ -49,7 +70,7 @@ impl AppConfig {
             }
         }
 
-        ini.write_to_file("config.ini")?;
+        ini.write_to_file(path)?;
         Ok(())
     }
 }
