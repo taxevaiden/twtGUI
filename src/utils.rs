@@ -4,7 +4,7 @@ use iced::{
     Color, Length, font,
     widget::{Column, Image, column, container, image::Handle, rich_text, row, space, span},
 };
-use regex;
+use regex::Regex;
 
 use bytes::Bytes;
 use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
@@ -116,84 +116,66 @@ pub fn compute_twt_hash(feed_url: &str, timestamp: &str, text: &str) -> String {
 }
 
 pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, Vec<OptLink>, String) {
-    let mention_re = regex::Regex::new(r"@<(?P<first>[^\s>]+)(?:\s+(?P<second>[^>]+))?>").unwrap();
-    let subject_re = regex::Regex::new(r"^\(#(?P<hash>[^)]+)\)").unwrap();
+    let subject_re = Regex::new(r"^\(#(?P<hash>[a-z0-9]{7})\)").unwrap();
+    let mention_re = Regex::new(r"@<(?P<first>[^\s>]+)(?:\s+(?P<second>[^>]+))?>").unwrap();
 
     let mut reply_to = None;
     let mut mentions = Vec::new();
     let mut display_content = String::new();
-    let mut current_pos = 0;
-    let mut subject_found = false;
 
-    // prefix pass (hashes, first couple mentions)
-    while current_pos < raw_content.len() {
-        let remaining = &raw_content[current_pos..];
-        let trimmed = remaining.trim_start();
-        current_pos += remaining.len() - trimmed.len();
+    let mut current_input = raw_content;
 
-        let fragment = &raw_content[current_pos..];
-        if fragment.is_empty() {
-            break;
-        }
+    // the hash usually appears at the very start to indicate a reply
+    if let Some(cap) = subject_re.captures(current_input) {
+        reply_to = Some(cap.name("hash").unwrap().as_str().to_string());
 
-        // try matching a mention at the current start
-        if let Some(cap) = mention_re.captures(fragment) {
-            let first = cap.name("first").map(|m| m.as_str()).unwrap();
-            let second = cap.name("second").map(|m| m.as_str());
-
-            mentions.push(OptLink {
-                text: second.map(|_| first.trim().to_string()),
-                url: second.unwrap_or(first).trim().to_string(),
-            });
-
-            if second.is_some() {
-                display_content.push_str(&format!("@{} ", first));
-            } else {
-                display_content.push_str(&format!("{} ", first));
-            }
-
-            current_pos += cap.get(0).unwrap().end();
-            continue;
-        }
-
-        // try matching hash at the current start
-        if !subject_found {
-            if let Some(cap) = subject_re.captures(fragment) {
-                reply_to = Some(cap.name("hash").unwrap().as_str().to_string());
-                subject_found = true;
-                current_pos += cap.get(0).unwrap().end();
-                continue;
-            }
-        }
-
-        break;
+        let match_end = cap.get(0).unwrap().end();
+        current_input = current_input[match_end..].trim_start();
     }
 
-    let body = &raw_content[current_pos..];
-    let mut last_end = 0;
-
-    // second pass (all mentions throughout body)
-    for cap in mention_re.captures_iter(body) {
+    // some clients put mentions right after the hash
+    // we check if the string STARTS with a mention
+    while let Some(cap) = mention_re.captures(current_input) {
         let whole_match = cap.get(0).unwrap();
-        display_content.push_str(&body[last_end..whole_match.start()]);
+        if whole_match.start() != 0 {
+            break; // not at the start anymore, move to body parsing
+        }
 
-        let first = cap.name("first").map(|m| m.as_str()).unwrap();
+        let first = cap.name("first").unwrap().as_str();
         let second = cap.name("second").map(|m| m.as_str());
 
         mentions.push(OptLink {
-            text: second.map(|_| first.trim().to_string()),
-            url: second.unwrap_or(first).trim().to_string(),
+            text: second.map(|s| s.trim().to_string()),
+            url: (second.unwrap_or(first)).trim().to_string(),
         });
 
-        if second.is_some() {
-            display_content.push_str(&format!("@{}", first));
-        } else {
-            display_content.push_str(first);
-        }
+        display_content.push_str(&format!("@{} ", first.trim()));
+
+        current_input = current_input[whole_match.end()..].trim_start();
+    }
+
+    // now we parse the rest of the text, looking for mentions mixed with words
+    let mut last_end = 0;
+    for cap in mention_re.captures_iter(current_input) {
+        let whole_match = cap.get(0).unwrap();
+
+        display_content.push_str(&current_input[last_end..whole_match.start()]);
+
+        let first = cap.name("first").unwrap().as_str();
+        let second = cap.name("second").map(|m| m.as_str());
+
+        mentions.push(OptLink {
+            text: second.map(|s| s.trim().to_string()),
+            url: (second.unwrap_or(first)).trim().to_string(),
+        });
+
+        display_content.push_str(&format!("@{}", first.trim()));
 
         last_end = whole_match.end();
     }
-    display_content.push_str(&body[last_end..]);
+
+    // push remaining text after the last mention
+    display_content.push_str(&current_input[last_end..]);
 
     (reply_to, mentions, display_content.trim().to_string())
 }
