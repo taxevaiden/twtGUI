@@ -108,42 +108,52 @@ impl TimelinePage {
                 Task::batch(tasks)
             }
 
-            Message::FeedLoaded {
-                nick: _,
-                url,
-                result,
-            } => {
-                if let Ok(bundle) = result {
-                    self.tweets.extend(bundle.tweets);
-                    self.sort_and_refresh();
+            Message::FeedLoaded { nick, url, result } => {
+                match result {
+                    Ok(bundle) => {
+                        println!("Feed successfully loaded for {} @ {}", nick, url);
+                        self.tweets.extend(bundle.tweets);
+                        self.sort_and_refresh();
 
-                    // trigger avatar download if available
-                    if let Some(meta) = bundle.metadata {
-                        if let Some(avatar_url) = meta.avatar {
-                            return Task::perform(download_binary(avatar_url), move |res| {
-                                Message::AvatarLoaded {
-                                    url: url.clone(),
-                                    result: res,
-                                }
-                            });
+                        // trigger avatar download if available
+                        if let Some(meta) = bundle.metadata {
+                            if let Some(avatar_url) = meta.avatar {
+                                return Task::perform(download_binary(avatar_url), move |res| {
+                                    Message::AvatarLoaded {
+                                        url: url.clone(),
+                                        result: res,
+                                    }
+                                });
+                            }
                         }
+                    }
+
+                    Err(e) => {
+                        println!("Error: {}", e);
                     }
                 }
                 self.decrement_pending()
             }
 
             Message::AvatarLoaded { url, result } => {
-                if let Ok(bytes) = result {
-                    let new_handle = Handle::from_bytes(bytes);
+                match result {
+                    Ok(bytes) => {
+                        println!("Avatar successfully loaded for {}", url);
+                        let new_handle = Handle::from_bytes(bytes);
 
-                    // "patch" existing tweets that match this feed URL
-                    for tweet in self.tweets.iter_mut() {
-                        if tweet.url == url {
-                            tweet.avatar = new_handle.clone();
-                            if tweet.url == config.settings.twturl {
-                                self.local_avatar = Some(new_handle.clone());
+                        // "patch" existing tweets that match this feed URL
+                        for tweet in self.tweets.iter_mut() {
+                            if tweet.url == url {
+                                tweet.avatar = new_handle.clone();
+                                if tweet.url == config.settings.twturl {
+                                    self.local_avatar = Some(new_handle.clone());
+                                }
                             }
                         }
+                    }
+
+                    Err(e) => {
+                        println!("Error: {}", e);
                     }
                 }
                 self.decrement_pending()

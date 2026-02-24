@@ -473,6 +473,7 @@ fn get_parsed_cache_path(url: &str) -> Result<PathBuf, String> {
 }
 
 pub async fn download_binary(url: String) -> Result<Bytes, String> {
+    println!("Downloading file from {}", url);
     static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
     let client = reqwest::Client::builder()
@@ -500,6 +501,12 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
 
     // 304 Not Modified
     if response.status() == reqwest::StatusCode::NOT_MODIFIED {
+        println!(
+            "304 Not Modified: {}\n\tData: {}\n\tMetadata: {}",
+            url,
+            data_path.display(),
+            meta_path.display()
+        );
         let raw_bytes = std::fs::read(&data_path).map_err(|e| e.to_string())?;
         return Ok(Bytes::from(raw_bytes));
     }
@@ -519,12 +526,22 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
 
     let data = response.bytes().await.map_err(|e| e.to_string())?;
 
-    std::fs::write(&data_path, &data).map_err(|e| e.to_string())?;
     let meta_json = serde_json::to_string(&CacheMetadata {
         etag,
         last_modified,
     })
     .map_err(|e| e.to_string())?;
+
+    println!(
+        "200 OK: {}\n\tWriting {} bytes to data {}\n\tWriting {} bytes to metadata {}",
+        url,
+        data.len(),
+        data_path.display(),
+        meta_json.len(),
+        meta_path.display()
+    );
+
+    std::fs::write(&data_path, &data).map_err(|e| e.to_string())?;
     std::fs::write(&meta_path, meta_json).map_err(|e| e.to_string())?;
 
     Ok(data)
@@ -559,7 +576,7 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
 
     // 304 Not Modified
     if response.status() == reqwest::StatusCode::NOT_MODIFIED {
-        println!("304 Not Modified: {}", url);
+        println!("304 Not Modified: {}\n\t{}", url, cache_path.display());
         return cached_data
             .map(|e| e.content)
             .ok_or_else(|| "Server returned 304 but no local file found".to_string());
@@ -580,8 +597,6 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
 
     let content = response.text().await.map_err(|e| e.to_string())?;
 
-    println!("200 OK: {}", url);
-
     let new_entry = CacheEntry {
         content: content.clone(),
         metadata: CacheMetadata {
@@ -591,6 +606,12 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
     };
 
     let serialized = serde_json::to_string(&new_entry).map_err(|e| e.to_string())?;
+    println!(
+        "200 OK: {}\n\tWriting {} bytes to {}",
+        url,
+        serialized.len(),
+        cache_path.display()
+    );
     std::fs::write(cache_path, serialized).map_err(|e| e.to_string())?;
 
     Ok(content)

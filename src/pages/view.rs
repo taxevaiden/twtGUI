@@ -77,6 +77,7 @@ impl ViewPage {
 
                 match result {
                     Ok(bundle) => {
+                        println!("Feed successfully loaded for {}", url);
                         self.metadata = bundle.metadata.clone();
                         self.tweets = bundle.tweets;
 
@@ -106,20 +107,26 @@ impl ViewPage {
             }
 
             Message::AvatarLoaded { url, result } => {
-                self.pending_downloads -= 1;
+                match result {
+                    Ok(bytes) => {
+                        println!("Avatar successfully loaded for {}", url);
+                        let handle = Handle::from_bytes(bytes);
+                        self.avatar_bytes = Some(handle.clone());
 
-                if let Ok(bytes) = result {
-                    let handle = Handle::from_bytes(bytes);
-                    self.avatar_bytes = Some(handle.clone());
-
-                    // Patch tweets
-                    for tweet in self.tweets.iter_mut() {
-                        if tweet.url == url {
-                            tweet.avatar = handle.clone();
+                        // Patch tweets
+                        for tweet in self.tweets.iter_mut() {
+                            if tweet.url == url {
+                                tweet.avatar = handle.clone();
+                            }
                         }
+                    }
+
+                    Err(e) => {
+                        println!("Error: {}", e);
                     }
                 }
 
+                self.pending_downloads -= 1;
                 Task::none()
             }
 
