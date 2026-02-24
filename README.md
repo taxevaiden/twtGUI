@@ -23,9 +23,9 @@ twtGUI uses a configuration file, `config.ini`, to store user settings.
 
 | Platform | File path |
 |-|-|
-| Windows | C:\Users\<yourname>\AppData\Roaming\taxevaiden\twtGUI\config\config.ini
-| macOS | /Users/<yourname>/Library/Application Support/com.taxevaiden.twtGUI/config.ini
-| Linux | /home/<yourname>/.config/twtgui/config.ini
+| Windows | C:\Users\yourname\AppData\Roaming\taxevaiden\twtGUI\config\config.ini |
+| macOS | /Users/yourname/Library/Application Support/com.taxevaiden.twtGUI/config.ini |
+| Linux | /home/yourname/.config/twtgui/config.ini |
 
 Here are the available settings:
 
