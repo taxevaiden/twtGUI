@@ -33,10 +33,16 @@ pub struct Tweet {
     pub timestamp: DateTime<Utc>,
     pub url: String,
     pub author: String,
-    pub content: String,
+    pub content: Vec<WordSpan>,
 
     #[serde(skip, default = "default_avatar")]
     pub avatar: Handle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WordSpan {
+    pub text: String,
+    pub link: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -115,7 +121,7 @@ pub fn compute_twt_hash(feed_url: &str, timestamp: &str, text: &str) -> String {
         .collect()
 }
 
-pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, Vec<OptLink>, String) {
+pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, Vec<OptLink>, Vec<WordSpan>) {
     let subject_re = Regex::new(r"^\(#(?P<hash>[a-z0-9]{7})\)").unwrap();
     let mention_re = Regex::new(r"@<(?P<first>[^\s>]+)(?:\s+(?P<second>[^>]+))?>").unwrap();
 
@@ -177,7 +183,52 @@ pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, Vec<OptLink>, S
     // push remaining text after the last mention
     display_content.push_str(&current_input[last_end..]);
 
-    (reply_to, mentions, display_content.trim().to_string())
+    // now we convert the text into WordSpans
+    let mut spans = Vec::new();
+
+    for word in display_content.trim().split_whitespace() {
+        let is_link = word.starts_with("http://") || word.starts_with("https://");
+        let is_mention = word.starts_with("@");
+
+        if is_link {
+            spans.push(WordSpan {
+                text: word.to_string(),
+                link: Some(word.to_string()),
+            });
+
+            continue;
+        }
+
+        if is_mention {
+            let mention_str = word.trim_start_matches('@');
+            for mention in &mentions {
+                if let Some(word) = mention.text.clone() {
+                    if word == mention_str {
+                        spans.push(WordSpan {
+                            text: format!("@{}", word),
+                            link: Some(mention.url.clone()),
+                        });
+                    }
+                } else {
+                    if mention.url.clone() == mention_str {
+                        spans.push(WordSpan {
+                            text: format!("@{}", mention.url.clone()),
+                            link: Some(mention.url.clone()),
+                        });
+                    }
+                }
+            }
+
+            continue;
+        }
+
+        spans.push(WordSpan {
+            text: word.to_string(),
+            link: None,
+        });
+    }
+
+    (reply_to, mentions, spans)
 }
 
 pub fn parse_metadata(input: &str) -> Option<Metadata> {
@@ -274,7 +325,7 @@ pub fn parse_tweets(author: &str, url: &str, avatar: Option<Handle>, input: &str
                     .clone()
                     .unwrap_or_else(|| Handle::from_path("assets/default_avatar.png")),
                 // Use the cleaned version for the UI
-                content: display_content.trim().to_string(),
+                content: display_content,
             })
         })
         .collect()
@@ -287,12 +338,12 @@ where
 {
     use std::collections::HashMap;
 
-    let mut col = column!().spacing(8);
+    let mut col = column!().spacing(12);
 
     let mut bold = font::Font::with_name("Iosevka Aile");
     bold.weight = font::Weight::Bold;
 
-    // Build lookup map
+    // build lookup map
     let mut map: HashMap<&str, &Tweet> = HashMap::new();
     for tweet in tweets {
         map.insert(&tweet.hash, tweet);
@@ -315,49 +366,18 @@ where
 
         let mut spans = Vec::new();
 
-        for word in tweet.content.split_whitespace() {
-            let is_link = word.starts_with("http://") || word.starts_with("https://");
-            let is_mention = word.starts_with("@");
-
-            if is_link {
+        for word in tweet.content.clone() {
+            if let Some(link) = word.link {
                 spans.push(
-                    span(word)
-                        .link(word.to_string())
+                    span(word.text)
+                        .link(link)
                         .color(Color::from_rgb(0.4, 0.6, 1.0)),
                 );
                 spans.push(span(" "));
-
                 continue;
             }
 
-            if is_mention {
-                let mention_str = word.trim_start_matches('@');
-                for mention in &tweet.mentions {
-                    if let Some(word) = mention.text.clone() {
-                        if word == mention_str {
-                            spans.push(
-                                span(format!("@{}", word))
-                                    .link(mention.url.clone())
-                                    .color(Color::from_rgb(0.4, 0.6, 1.0)),
-                            );
-                            spans.push(span(" "));
-                        }
-                    } else {
-                        if mention.url.clone() == mention_str {
-                            spans.push(
-                                span(format!("@{}", mention.url.clone()))
-                                    .link(mention.url.clone())
-                                    .color(Color::from_rgb(0.4, 0.6, 1.0)),
-                            );
-                            spans.push(span(" "));
-                        }
-                    }
-                }
-
-                continue;
-            }
-
-            spans.push(span(word));
+            spans.push(span(word.text));
             spans.push(span(" "));
         }
 
@@ -372,17 +392,37 @@ where
             if let Some(reply_twt) = map.get(reply.as_str()) {
                 let reply_author = reply_twt.author.clone();
                 let reply_content = reply_twt.content.clone();
+
+                let mut reply_display = Vec::new();
+
+                reply_display.push(span("Reply to ").size(10));
+                reply_display.push(
+                    span(reply_author)
+                        .font(bold)
+                        .link(reply_twt.url.clone())
+                        .size(10),
+                );
+                reply_display.push(span(": ").size(10));
+                for reply_word in reply_content {
+                    if let Some(link) = reply_word.link {
+                        reply_display.push(
+                            span(reply_word.text)
+                                .link(link)
+                                .color(Color::from_rgb(0.4, 0.6, 1.0))
+                                .size(10),
+                        );
+                        reply_display.push(span(" ").size(10));
+                        continue;
+                    }
+
+                    reply_display.push(span(reply_word.text).size(10));
+                    reply_display.push(span(" ").size(10));
+                }
                 col = col.push(
                     column![
                         row![
                             space().width(64),
-                            rich_text![
-                                span("Reply to "),
-                                span(reply_author).font(bold).link(reply_twt.url.clone()),
-                                span(": "),
-                                span(reply_content)
-                            ]
-                            .on_link_click(on_link)
+                            rich_text(reply_display).on_link_click(on_link)
                         ],
                         row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6),
                     ]
