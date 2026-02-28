@@ -57,7 +57,8 @@ pub struct OptLink {
     pub url: String,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Metadata {
     pub urls: Vec<String>, // the url(s) of the feed. if the url(s) do not match the url that the user entered in the ViewPage, we should warn the user. we don't redirect them for security reasons
     pub nick: Option<String>,
@@ -69,6 +70,23 @@ pub struct Metadata {
     pub links: Vec<Link>, // urls on their profile (ex. My Github Page: https://github.com/username)
     pub prev: Vec<String>,
     pub refresh: Option<u64>,
+}
+
+impl Default for Metadata {
+    fn default() -> Self {
+        Self {
+            urls: Vec::new(),
+            nick: None,
+            avatar: None,
+            description: None,
+            kind: None,
+            follows: Vec::new(),
+            following: None,
+            links: Vec::new(),
+            prev: Vec::new(),
+            refresh: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

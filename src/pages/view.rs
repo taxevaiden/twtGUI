@@ -41,7 +41,7 @@ pub enum Message {
 impl ViewPage {
     pub fn new(config: &AppConfig) -> Self {
         Self {
-            composer: config.settings.twturl.clone(),
+            composer: config.metadata.urls.first().cloned().unwrap_or_default(),
             avatar_bytes: None,
             tweets: Vec::new(),
             metadata: None,

@@ -70,41 +70,42 @@ impl TimelinePage {
                 let mut tasks = Vec::new();
 
                 // handle local file
-                let path = std::path::Path::new(&config.settings.twtxt);
+                let path = std::path::Path::new(&config.paths.twtxt);
+
                 if let Ok(content) = std::fs::read_to_string(path) {
+                    let nick = config.metadata.nick.clone().unwrap_or_default();
+
+                    let url = config.metadata.urls.first().cloned().unwrap_or_default();
+
                     let bundle = FeedBundle {
                         metadata: parse_metadata(&content),
-                        tweets: parse_tweets(
-                            &config.settings.nick,
-                            &config.settings.twturl,
-                            None,
-                            &content,
-                        ),
+                        tweets: parse_tweets(&nick, &url, None, &content),
                     };
+
                     tasks.push(Task::done(Message::FeedLoaded {
-                        nick: config.settings.nick.clone(),
-                        url: config.settings.twturl.clone(),
+                        nick,
+                        url,
                         result: Ok(bundle),
                     }));
                 }
 
                 // handle following
-                if let Some(following) = config.following.as_ref() {
-                    for (nick, url) in following {
-                        self.pending_downloads += 1;
-                        // THis is terrible but ill fix later lmao
-                        let follow_nick = nick.clone();
-                        let follow_url = url.clone();
-                        tasks.push(Task::perform(
-                            download_and_parse_twtxt(follow_nick.clone(), follow_url.clone(), true),
-                            move |result| Message::FeedLoaded {
-                                nick: follow_nick.clone(),
-                                url: follow_url.clone(),
-                                result,
-                            },
-                        ));
-                    }
+                for link in &config.metadata.follows {
+                    self.pending_downloads += 1;
+
+                    let follow_nick = link.text.clone();
+                    let follow_url = link.url.clone();
+
+                    tasks.push(Task::perform(
+                        download_and_parse_twtxt(follow_nick.clone(), follow_url.clone(), true),
+                        move |result| Message::FeedLoaded {
+                            nick: follow_nick.clone(),
+                            url: follow_url.clone(),
+                            result,
+                        },
+                    ));
                 }
+
                 Task::batch(tasks)
             }
 
@@ -145,7 +146,7 @@ impl TimelinePage {
                         for tweet in self.tweets.iter_mut() {
                             if tweet.url == url {
                                 tweet.avatar = new_handle.clone();
-                                if tweet.url == config.settings.twturl {
+                                if tweet.url == config.metadata.urls[0] {
                                     self.local_avatar = Some(new_handle.clone());
                                 }
                             }
@@ -195,36 +196,36 @@ impl TimelinePage {
 
         let (reply_to, mentions, display_content) = parse_twt_contents(&self.composer);
 
+        let nick = match &config.metadata.nick {
+            Some(n) => n.clone(),
+            None => return, // no nick set, abort
+        };
+
+        let url = config.metadata.urls.first().cloned().unwrap_or_default();
+
+        let timestamp = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+
         self.tweets.insert(
             0,
             Tweet {
-                hash: compute_twt_hash(
-                    &config.settings.nick,
-                    &now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-                    &self.composer,
-                ),
+                hash: compute_twt_hash(&nick, &timestamp, &self.composer),
                 reply_to,
                 mentions,
                 timestamp: now,
-                author: config.settings.nick.clone(),
-                url: config.settings.twturl.clone(),
+                author: nick.clone(),
+                url,
                 avatar,
                 content: display_content,
             },
         );
 
-        let mut file = OpenOptions::new()
+        if let Ok(mut file) = OpenOptions::new()
+            .create(true)
             .append(true)
-            .open(&config.settings.twtxt)
-            .unwrap();
-
-        writeln!(
-            file,
-            "{}\t{}",
-            now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-            self.composer
-        )
-        .ok();
+            .open(&config.paths.twtxt)
+        {
+            let _ = writeln!(file, "{}\t{}", timestamp, self.composer);
+        }
 
         self.composer.clear();
     }

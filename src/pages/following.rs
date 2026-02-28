@@ -3,7 +3,7 @@ use iced::{
     widget::{button, column, row, text, text_input},
 };
 
-use crate::config::AppConfig;
+use crate::{config::AppConfig, utils::Link};
 
 #[derive(Default)]
 pub struct FollowingPage {
@@ -37,10 +37,10 @@ impl FollowingPage {
 
             Message::AddPressed => {
                 if !self.new_name.is_empty() && !self.new_url.is_empty() {
-                    config
-                        .following
-                        .get_or_insert_with(Default::default)
-                        .insert(self.new_name.clone(), self.new_url.clone());
+                    config.metadata.follows.push(Link {
+                        text: self.new_name.clone(),
+                        url: self.new_url.clone(),
+                    });
 
                     self.new_name.clear();
                     self.new_url.clear();
@@ -49,19 +49,15 @@ impl FollowingPage {
             }
 
             Message::RemovePressed(name) => {
-                if let Some(f) = &mut config.following {
-                    f.remove(&name);
-                    let _ = config.save();
-                }
+                config.metadata.follows.retain(|l| l.text != name);
+                let _ = config.save();
             }
 
             Message::EditPressed(name) => {
-                if let Some(f) = &config.following {
-                    if let Some(url) = f.get(&name) {
-                        self.editing = Some(name.clone());
-                        self.edit_name = name;
-                        self.edit_url = url.clone();
-                    }
+                if let Some(link) = config.metadata.follows.iter().find(|l| l.text == name) {
+                    self.editing = Some(name.clone());
+                    self.edit_name = link.text.clone();
+                    self.edit_url = link.url.clone();
                 }
             }
 
@@ -70,9 +66,14 @@ impl FollowingPage {
 
             Message::SaveEdit => {
                 if let Some(old_name) = self.editing.take() {
-                    if let Some(f) = &mut config.following {
-                        f.remove(&old_name);
-                        f.insert(self.edit_name.clone(), self.edit_url.clone());
+                    if let Some(link) = config
+                        .metadata
+                        .follows
+                        .iter_mut()
+                        .find(|l| l.text == old_name)
+                    {
+                        link.text = self.edit_name.clone();
+                        link.url = self.edit_url.clone();
                         let _ = config.save();
                     }
                 }
@@ -87,42 +88,43 @@ impl FollowingPage {
     pub fn view(&self, config: &AppConfig) -> Element<'_, Message> {
         let mut list = column!().spacing(8);
 
-        if let Some(following) = &config.following {
-            for (name, url) in following {
-                if self.editing.as_deref() == Some(name) {
-                    // Editing mode
-                    list = list.push(
-                        row![
-                            text_input("Name", &self.edit_name)
-                                .on_input(Message::EditNameChanged)
-                                .padding(8),
-                            text_input("URL", &self.edit_url)
-                                .on_input(Message::EditUrlChanged)
-                                .padding(8),
-                            button("Save").on_press(Message::SaveEdit).padding([8, 16]),
-                            button("Cancel")
-                                .on_press(Message::CancelEdit)
-                                .padding([8, 16]),
-                        ]
-                        .spacing(8)
-                        .align_y(Alignment::Center),
-                    );
-                } else {
-                    // Normal mode
-                    list = list.push(
-                        row![
-                            text(format!(" {} → {}", name, url)).width(Length::Fill),
-                            button("Edit")
-                                .on_press(Message::EditPressed(name.clone()))
-                                .padding([8, 16]),
-                            button("Remove")
-                                .on_press(Message::RemovePressed(name.clone()))
-                                .padding([8, 16]),
-                        ]
-                        .spacing(8)
-                        .align_y(Alignment::Center),
-                    );
-                }
+        for link in &config.metadata.follows {
+            let name = &link.text;
+            let url = &link.url;
+
+            if self.editing.as_deref() == Some(name) {
+                // Editing mode
+                list = list.push(
+                    row![
+                        text_input("Name", &self.edit_name)
+                            .on_input(Message::EditNameChanged)
+                            .padding(8),
+                        text_input("URL", &self.edit_url)
+                            .on_input(Message::EditUrlChanged)
+                            .padding(8),
+                        button("Save").on_press(Message::SaveEdit).padding([8, 16]),
+                        button("Cancel")
+                            .on_press(Message::CancelEdit)
+                            .padding([8, 16]),
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center),
+                );
+            } else {
+                // Normal mode
+                list = list.push(
+                    row![
+                        text(format!(" {} → {}", name, url)).width(Length::Fill),
+                        button("Edit")
+                            .on_press(Message::EditPressed(name.clone()))
+                            .padding([8, 16]),
+                        button("Remove")
+                            .on_press(Message::RemovePressed(name.clone()))
+                            .padding([8, 16]),
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center),
+                );
             }
         }
 

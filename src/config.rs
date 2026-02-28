@@ -1,76 +1,81 @@
-use serde::{Deserialize, Serialize};
-
 use directories::ProjectDirs;
-use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+use std::{error::Error, fs, path::PathBuf};
 
-fn config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+use crate::utils::Metadata;
+
+fn config_path() -> Result<PathBuf, Box<dyn Error>> {
     let proj = ProjectDirs::from("com", "taxevaiden", "twtGUI")
         .ok_or("Could not determine config directory")?;
 
     let dir = proj.config_dir();
-    std::fs::create_dir_all(dir)?;
+    fs::create_dir_all(dir)?;
 
-    Ok(dir.join("config.ini"))
+    Ok(dir.join("config.toml"))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppConfig {
-    pub settings: Settings,
-    pub following: Option<std::collections::HashMap<String, String>>,
+    pub metadata: Metadata,
+    pub paths: AppFilePaths,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Settings {
-    pub nick: String,
+pub struct AppFilePaths {
     pub twtxt: String,
-    pub twturl: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            metadata: Metadata {
+                urls: Vec::new(),
+                nick: None,
+                avatar: None,
+                description: None,
+                kind: None,
+                follows: Vec::new(),
+                following: None,
+                links: Vec::new(),
+                prev: Vec::new(),
+                refresh: None,
+            },
+            paths: AppFilePaths {
+                twtxt: String::new(),
+            },
+        }
+    }
 }
 
 impl AppConfig {
-    pub fn load() -> Self {
-        let path = config_path().expect("Failed to determine config path");
-
-        // Create default config if missing
-        if !path.exists() {
-            let default = AppConfig {
-                settings: Settings {
-                    nick: "anon".into(),
-                    twtxt: "".into(),
-                    twturl: "".into(),
-                },
-                following: None,
-            };
-
-            default.save().expect("Failed to create default config");
-            return default;
-        }
-
-        let settings = config::Config::builder()
-            .add_source(config::File::from(path.clone()))
-            .build()
-            .expect("Failed to load config");
-
-        settings.try_deserialize().expect("Invalid config format")
-    }
-
-    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn load() -> Result<Self, Box<dyn Error>> {
         let path = config_path()?;
 
-        let mut ini = ini::Ini::new();
-
-        ini.with_section(Some("settings"))
-            .set("nick", &self.settings.nick)
-            .set("twtxt", &self.settings.twtxt)
-            .set("twturl", &self.settings.twturl);
-
-        if let Some(following) = &self.following {
-            let mut section = ini.with_section(Some("following"));
-            for (name, url) in following {
-                section.set(name, url);
-            }
+        if !path.exists() {
+            let default = Self::default();
+            default.save()?;
+            return Ok(default);
         }
 
-        ini.write_to_file(path)?;
+        let contents = fs::read_to_string(&path)?;
+
+        if contents.trim().is_empty() {
+            let default = Self::default();
+            default.save()?;
+            return Ok(default);
+        }
+
+        let config: Self = toml::from_str(&contents)?;
+        Ok(config)
+    }
+
+    pub fn save(&self) -> Result<(), Box<dyn Error>> {
+        let path = config_path()?;
+
+        let toml_string = toml::to_string_pretty(self)?;
+        fs::write(path, toml_string)?;
+
         Ok(())
     }
 }

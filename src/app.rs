@@ -42,7 +42,7 @@ pub struct RedirectInfo {
 
 impl TwtxtApp {
     pub fn new() -> Self {
-        let config = AppConfig::load();
+        let config = AppConfig::load().expect("Failed to load config");
         Self {
             page: Page::Timeline,
             config: config.clone(),
