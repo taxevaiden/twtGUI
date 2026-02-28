@@ -95,7 +95,7 @@ twtGUI does **not** automatically write metadata into your `twtxt.txt` file. (Bu
 
 ```toml
 [metadata]
-nick = "taxevaiden"
+nick = "john"
 urls = ["https://example.com/twtxt.txt"]
 description = "My personal twtxt feed"
 avatar = "https://example.com/avatar.png"
@@ -105,7 +105,7 @@ refresh = 600
 prev = ["https://old.example.com/twtxt.txt"]
 
 [[metadata.follows]]
-text = "someone"
+text = "jane"
 url = "https://someone.dev/twtxt.txt"
 
 [[metadata.links]]
