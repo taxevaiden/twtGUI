@@ -1,6 +1,6 @@
 # twtGUI
 
-A graphical client for the twtxt protocol
+A graphical client for twtxt
 
 ## What's supported?
 
