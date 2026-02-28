@@ -13,46 +13,83 @@ A graphical client for the twtxt protocol
   - [Twt Subject Extension](https://twtxt.dev/exts/twt-subject.html) (You can only see if a tweet is a reply for now)
   - [Metadata Extension](https://twtxt.dev/exts/metadata.html)
 
-If you're someone whose twtxt.txt only follows the twtxt v1 specification, this client's great for you!
+If you're someone whose `twtxt.txt` only follows the twtxt v1 specification, this client's great for you!
 
-If you're someone whose twtxt.txt follows the twtxt v2 specification, expect some features to be missing.
+If you're someone whose `twtxt.txt` follows the twtxt v2 specification, expect some features to be missing.
 
 ## Configuration
 
 twtGUI uses a `config.toml` file to store user settings and follow information.  
 The file is automatically created on first launch if it does not already exist.
 
-There is currently no dedicated settings page in twtGUI, so you will have to edit `config.toml` manually to change settings like your nickname or the path to your twtxt.txt.
+There is currently no dedicated settings page in twtGUI, so you must edit `config.toml` manually to change settings such as your nickname or the path to your `twtxt.txt` file.
 
-However, you can manage the feeds you follow through the Following page.
+Feeds you follow can be managed through the **Following** page inside twtGUI.
 
 If you need to edit `config.toml`, you can find it in your system’s configuration directory:
 
-| Platform | File path                                                                     |
-|-         |-                                                                              |
-| Windows  | C:\Users\yourname\AppData\Roaming\taxevaiden\twtGUI\config\config.toml        |
-| macOS    | /Users/yourname/Library/Application Support/com.taxevaiden.twtGUI/config.toml |
-| Linux    | /home/yourname/.config/twtgui/config.toml                                     |
+| Platform | File path |
+|----------|-----------|
+| Windows  | `C:\Users\yourname\AppData\Roaming\taxevaiden\twtGUI\config\config.toml` |
+| macOS    | `/Users/yourname/Library/Application Support/com.taxevaiden.twtGUI/config.toml` |
+| Linux    | `/home/yourname/.config/twtgui/config.toml` |
 
-The configuration is divided into two main sections: `[metadata]` and `[paths]`.
+The configuration file is divided into two main sections:
+
+- `[metadata]`
+- `[paths]`
 
 ---
 
 ### `[metadata]`
 
-Contains information about you and your twtxt identity.
+Contains information about you and your twtxt identity, along with optional metadata defined by the twtxt Metadata Extension.
 
-- `nick`  
-  Your nickname displayed in the client.
+These values are stored locally in `config.toml`.  
+twtGUI does **not** automatically write metadata into your `twtxt.txt` file. If you want this information to appear publicly in your feed, you must edit `twtxt.txt` manually. (But it will soon!)
 
 - `urls`  
   A list of public URLs pointing to your `twtxt.txt` file.  
   Typically this contains a single URL.
 
+- `nick`  
+  Your display name.
+
+- `avatar`  
+  A URL pointing to an image, used as your profile picture.
+
+- `description`  
+  A short bio or description of your feed.
+
+- `kind`  
+  The type of feed.  
+  Common values include:
+  - `"bot"` — automated account  
+  - `"rss"` — RSS-to-twtxt feed  
+  If not set, the feed is assumed to be human-managed.
+
 - `follows`  
-  A list of feeds you follow. Each entry contains:
+  A list of feeds you follow (managed inside twtGUI). Each entry contains:
   - `text` — The display name of the feed.
   - `url` — The feed’s `twtxt.txt` URL.
+
+- `following`  
+  The number of feeds this feed follows.  
+  This is ignored by the client and is informational metadata from the feed itself.
+
+- `links`  
+  Additional profile links. Each entry contains:
+  - `text` — A label (for example, `"GitHub"`)
+  - `url` — The associated URL  
+  These may be shown on a user’s profile page.
+
+- `prev`  
+  A URL that points to an archived feed.
+
+- `refresh`  
+  A suggested refresh interval (in seconds) for how often clients should fetch the feed.
+
+---
 
 #### Example
 
@@ -60,10 +97,20 @@ Contains information about you and your twtxt identity.
 [metadata]
 nick = "taxevaiden"
 urls = ["https://example.com/twtxt.txt"]
+description = "My personal twtxt feed"
+avatar = "https://example.com/avatar.png"
+kind = "user"
+refresh = 600
+
+prev = ["https://old.example.com/twtxt.txt"]
 
 [[metadata.follows]]
 text = "someone"
 url = "https://someone.dev/twtxt.txt"
+
+[[metadata.links]]
+text = "GitHub"
+url = "https://github.com/username"
 ```
 
 ### `[paths]`
@@ -80,40 +127,6 @@ Contains paths to your twtxt files.
 [paths]
 twtxt = "C:/path/to/twtxt.txt"
 ```
-
-### Metadata Extension
-
-twtGUI supports the **twtxt Metadata Extension**, which allows you to include additional information about your feed at the top of your `twtxt.txt` file.
-
-Metadata is written as comment lines (`#`) before your posts.  
-This must be edited manually in your `twtxt.txt` file.
-
-Example:
-
-```
-# nick = john
-# description = My (awesome) personal feed!
-# url = https://example.com/twtxt.txt
-# avatar = https://example.com/avatar.png
-# following = 2
-# follow = jane https://example.com/twtxt.txt
-# follow = joe https://example.com/twtxt.txt
-
-2022-01-01T12:00:00Z Hello, world!
-```
-
-#### Common Fields
-
-- `nick` — Your display name.
-- `description` — A short bio or description of your feed.
-- `url` — The public URL of your `twtxt.txt`.
-- `avatar` — A URL to your profile image.
-- `following` — The number of feeds you follow.
-- `follow` — A feed you follow (`name` + `url`).
-
-Metadata must appear at the top of the file, before any posts.
-
-For full details, see the official [twtxt v2 Metadata specification](https://twtxt.dev/exts/metadata.html).
 
 ## Running
 
