@@ -68,7 +68,7 @@ pub struct Metadata {
     pub follows: Vec<Link>,
     pub following: Option<u64>, // number of people they follow; this isn't really needed since we can just do follows.len()
     pub links: Vec<Link>, // urls on their profile (ex. My Github Page: https://github.com/username)
-    pub prev: Vec<String>,
+    pub prev: Vec<Link>,
     pub refresh: Option<u64>,
 }
 
@@ -300,7 +300,15 @@ pub fn parse_metadata(input: &str) -> Option<Metadata> {
                 }
             }
 
-            "prev" => metadata.prev.push(value.to_string()),
+            "prev" => {
+                // format: text url
+                if let Some((text, url)) = value.rsplit_once(' ') {
+                    metadata.prev.push(Link {
+                        text: text.trim().to_string(),
+                        url: url.trim().to_string(),
+                    });
+                }
+            }
 
             "refresh" => {
                 if let Ok(num) = value.parse::<u64>() {
