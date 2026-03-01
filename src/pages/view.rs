@@ -8,7 +8,7 @@ use iced::{
     },
 };
 
-use crate::components::feed::{self, VirtualTimeline};
+use crate::components::feed::{self, LazyFeed};
 use crate::config::AppConfig;
 use crate::utils::{FeedBundle, Metadata, Tweet, download_and_parse_twtxt, download_binary};
 
@@ -18,7 +18,7 @@ pub struct ViewPage {
     tweets: Vec<Tweet>,
     metadata: Option<Metadata>,
     pending_downloads: usize,
-    feed: VirtualTimeline,
+    feed: LazyFeed,
 }
 
 #[derive(Debug, Clone)]
@@ -46,7 +46,7 @@ impl ViewPage {
             tweets: Vec::new(),
             metadata: None,
             pending_downloads: 0,
-            feed: VirtualTimeline::new(0),
+            feed: LazyFeed::new(0),
         }
     }
 

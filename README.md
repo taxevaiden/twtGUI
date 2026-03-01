@@ -14,7 +14,7 @@ A graphical client for twtxt
 - **Some** of the [twtxt v2 specification](https://twtxt.dev)
   - Mentions
   - [Twt Hash Extension](https://twtxt.dev/exts/twt-hash.html)
-  - [Twt Subject Extension](https://twtxt.dev/exts/twt-subject.html) (You can only see if a tweet is a reply for now)
+  - [Twt Subject Extension](https://twtxt.dev/exts/twt-subject.html)
   - [Metadata Extension](https://twtxt.dev/exts/metadata.html)
 
 If you're someone whose `twtxt.txt` only follows the twtxt v1 specification, this client's great for you!
@@ -87,7 +87,9 @@ These values are stored locally in `config.toml`, and will be automatically writ
   These may be shown on a user’s profile page.
 
 - `prev`  
-  A URL that points to an archived feed.
+  A list of archived feeds. Each entry contains:
+  - `text` — The hash of the last tweet in the feed.
+  - `url` — The feed’s `twtxt.txt` URL.
 
 - `refresh`  
   A suggested refresh interval (in seconds) for how often clients should fetch the feed.
@@ -103,8 +105,6 @@ avatar = "https://example.com/avatar.png"
 kind = "user"
 refresh = 600
 
-prev = ["https://old.example.com/twtxt.txt"]
-
 [[metadata.follows]]
 text = "jane"
 url = "https://someone.dev/twtxt.txt"
@@ -112,11 +112,34 @@ url = "https://someone.dev/twtxt.txt"
 [[metadata.links]]
 text = "GitHub"
 url = "https://github.com/username"
+
+[[metadata.prev]]
+text = "abc1234"
+url = "https://old.example.com/twtxt.txt"
+```
+
+```
+# written into twtxt.txt
+
+# nick = john
+# url = https://example.com/twtxt.txt
+# description = My personal twtxt feed
+# avatar = https://example.com/avatar.png
+# kind = user
+# refresh = 600
+# following = 1
+# follow = jane https://someone.dev/twtxt.txt
+# link = GitHub https://github.com/username
+# prev = abc1234 https://example.com/twtxt-2017-2-7.txt
+
+2026-03-01T03:10:17Z	Hello everyone!
+2026-03-01T04:21:27Z	(#abc1234) Hello?
+2026-03-01T04:21:57Z	@<taxevaiden https://taxevaiden.pages.dev/twtxt.txt>?
 ```
 
 ### `[paths]`
 
-Contains paths to your twtxt files.
+Contains the path to your `twtxt.txt` file.
 
 - `twtxt`  
   The filepath to your local `twtxt.txt` file.

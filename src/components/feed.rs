@@ -20,12 +20,12 @@ pub enum Message {
     RedirectToPage(crate::app::RedirectInfo),
 }
 
-pub struct VirtualTimeline {
+pub struct LazyFeed {
     scroll_id: Id,
     visible_count: usize,
 }
 
-impl VirtualTimeline {
+impl LazyFeed {
     pub fn new(total_items: usize) -> Self {
         Self {
             scroll_id: Id::unique(),

@@ -10,6 +10,7 @@ use bytes::Bytes;
 use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use directories::ProjectDirs;
@@ -37,6 +38,11 @@ pub struct Tweet {
 
     #[serde(skip, default = "default_avatar")]
     pub avatar: Handle,
+}
+
+pub struct TweetNode {
+    pub index: usize,
+    pub children: Vec<TweetNode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,6 +115,53 @@ fn hash_sha256_str(s: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(s.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+pub fn build_threads(tweets: &[Tweet]) -> Vec<TweetNode> {
+    let mut children_map: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut roots = Vec::new();
+
+    let all_hashes: std::collections::HashSet<&str> =
+        tweets.iter().map(|t| t.hash.as_str()).collect();
+
+    for (index, tweet) in tweets.iter().enumerate() {
+        let is_reply = tweet
+            .reply_to
+            .as_ref()
+            .map(|parent| all_hashes.contains(parent.as_str()))
+            .unwrap_or(false);
+
+        if !is_reply {
+            roots.push(index);
+        } else {
+            let parent_hash = tweet.reply_to.as_ref().unwrap();
+            children_map
+                .entry(parent_hash.clone())
+                .or_default()
+                .push(index);
+        }
+    }
+
+    roots
+        .into_iter()
+        .map(|root_index| construct_node(root_index, tweets, &children_map))
+        .collect()
+}
+
+fn construct_node(
+    index: usize,
+    tweets: &[Tweet],
+    children_map: &HashMap<String, Vec<usize>>,
+) -> TweetNode {
+    let children = children_map
+        .get(&tweets[index].hash)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|child_index| construct_node(child_index, tweets, children_map))
+        .collect();
+
+    TweetNode { index, children }
 }
 
 // timestamp must be formatted as RFC3339, with the time truncated/expanded to seconds precision
@@ -455,6 +508,87 @@ where
     }
 
     col
+}
+
+pub fn build_threaded_feed<'a, M, F>(
+    threads: &'a [TweetNode],
+    tweets: &'a [Tweet],
+    on_link: F,
+) -> Column<'a, M>
+where
+    M: 'a,
+    F: Fn(String) -> M + Copy + 'a,
+{
+    let mut col = column!().spacing(24);
+
+    for thread in threads {
+        col = col.push(render_tweet_node(thread, tweets, on_link, 0));
+    }
+
+    col
+}
+
+fn render_tweet_node<'a, M, F>(
+    node: &TweetNode,
+    tweets: &'a [Tweet],
+    on_link: F,
+    depth: usize,
+) -> Column<'a, M>
+where
+    M: 'a,
+    F: Fn(String) -> M + Copy + 'a,
+{
+    let tweet = &tweets[node.index];
+    let mut bold = font::Font::with_name("Iosevka Aile");
+    bold.weight = font::Weight::Bold;
+
+    let formatted_time = tweet
+        .timestamp
+        .with_timezone(&Local)
+        .format("%h %-d %Y %-I:%M %p");
+
+    let header = rich_text![
+        span(&tweet.author).font(bold).link(tweet.url.clone()),
+        span(" - "),
+        span(formatted_time.to_string()),
+        span(" "),
+        span(tweet.hash.clone())
+    ]
+    .on_link_click(on_link);
+
+    let mut spans = Vec::new();
+    for word in &tweet.content {
+        let mut s = span(word.text.clone());
+        if let Some(link) = &word.link {
+            s = s.link(link.clone()).color(Color::from_rgb(0.4, 0.6, 1.0));
+        }
+        spans.push(s);
+        spans.push(span(" "));
+    }
+    let content = rich_text(spans).on_link_click(on_link);
+
+    let avatar_img = Image::new(tweet.avatar.clone())
+        .width(Length::Fixed(40.0))
+        .height(Length::Fixed(40.0))
+        .border_radius(20);
+
+    let tweet_view =
+        container(row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6))
+            .padding(4)
+            .width(Length::Fill);
+
+    let mut thread_column = column![tweet_view].spacing(8);
+
+    for reply in &node.children {
+        // indent replies
+        let indented_reply = row![
+            space().width(20),
+            render_tweet_node(reply, tweets, on_link, depth + 1)
+        ];
+        thread_column = thread_column.push(indented_reply);
+    }
+
+    thread_column
 }
 
 #[derive(Serialize, Deserialize, Debug)]

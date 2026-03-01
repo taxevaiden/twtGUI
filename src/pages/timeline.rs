@@ -7,19 +7,20 @@ use iced::{
 use std::fs::OpenOptions;
 use std::io::Write;
 
-use crate::components::feed::{self, VirtualTimeline};
+use crate::components::threaded_feed::{self, LazyThreadedFeed};
 use crate::config::AppConfig;
 use crate::utils::{
-    FeedBundle, Tweet, compute_twt_hash, download_and_parse_twtxt, download_binary, parse_metadata,
-    parse_tweets, parse_twt_contents,
+    FeedBundle, Tweet, TweetNode, build_threads, compute_twt_hash, download_and_parse_twtxt,
+    download_binary, parse_metadata, parse_tweets, parse_twt_contents,
 };
 
 pub struct TimelinePage {
     composer: String,
     tweets: Vec<Tweet>,
+    thread_tree: Vec<TweetNode>,
     local_avatar: Option<Handle>,
     pending_downloads: usize,
-    feed: VirtualTimeline,
+    feed: LazyThreadedFeed,
 }
 
 #[derive(Debug, Clone)]
@@ -37,7 +38,7 @@ pub enum Message {
         result: Result<Bytes, String>,
     },
     RedirectToPage(crate::app::RedirectInfo),
-    Feed(feed::Message),
+    Feed(threaded_feed::Message),
 }
 
 impl TimelinePage {
@@ -45,9 +46,10 @@ impl TimelinePage {
         Self {
             composer: String::new(),
             tweets: Vec::new(),
+            thread_tree: Vec::new(),
             local_avatar: None,
             pending_downloads: 0,
-            feed: VirtualTimeline::new(0),
+            feed: LazyThreadedFeed::new(0),
         }
     }
 
@@ -65,6 +67,7 @@ impl TimelinePage {
 
             Message::Refresh => {
                 self.tweets.clear();
+                self.thread_tree.clear();
                 self.feed.reset(0);
 
                 let mut tasks = Vec::new();
@@ -110,30 +113,35 @@ impl TimelinePage {
             }
 
             Message::FeedLoaded { nick, url, result } => {
+                let mut extra_task = Task::none();
+
                 match result {
                     Ok(bundle) => {
                         println!("Feed successfully loaded for {} @ {}", nick, url);
                         self.tweets.extend(bundle.tweets);
-                        self.sort_and_refresh();
 
                         // trigger avatar download if available
                         if let Some(meta) = bundle.metadata {
                             if let Some(avatar_url) = meta.avatar {
-                                return Task::perform(download_binary(avatar_url), move |res| {
-                                    Message::AvatarLoaded {
-                                        url: url.clone(),
-                                        result: res,
-                                    }
-                                });
+                                self.pending_downloads += 1;
+                                extra_task =
+                                    Task::perform(download_binary(avatar_url), move |res| {
+                                        Message::AvatarLoaded {
+                                            url: url.clone(),
+                                            result: res,
+                                        }
+                                    });
                             }
                         }
                     }
-
                     Err(e) => {
-                        println!("Error: {}", e);
+                        println!("Error loading feed: {}", e);
                     }
                 }
-                self.decrement_pending()
+
+                let decrement_task = self.decrement_pending();
+
+                Task::batch(vec![decrement_task, extra_task])
             }
 
             Message::AvatarLoaded { url, result } => {
@@ -160,7 +168,7 @@ impl TimelinePage {
                 self.decrement_pending()
             }
 
-            Message::Feed(feed::Message::RedirectToPage(info)) => {
+            Message::Feed(threaded_feed::Message::RedirectToPage(info)) => {
                 Task::done(Message::RedirectToPage(info))
             }
 
@@ -172,12 +180,17 @@ impl TimelinePage {
 
     fn sort_and_refresh(&mut self) {
         self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        self.thread_tree = build_threads(&self.tweets);
         self.feed.reset(self.tweets.len());
     }
 
     fn decrement_pending(&mut self) -> Task<Message> {
         if self.pending_downloads > 0 {
             self.pending_downloads -= 1;
+        }
+
+        if self.pending_downloads == 0 {
+            self.sort_and_refresh();
         }
         Task::none()
     }
@@ -188,7 +201,6 @@ impl TimelinePage {
         }
 
         let now = Utc::now();
-
         let avatar = self
             .local_avatar
             .clone()
@@ -202,40 +214,39 @@ impl TimelinePage {
         };
 
         let url = config.metadata.urls.first().cloned().unwrap_or_default();
+        let timestamp_str = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
-        let timestamp = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-
-        self.tweets.insert(
-            0,
-            Tweet {
-                hash: compute_twt_hash(
-                    &config.metadata.urls.first().cloned().unwrap_or_default(),
-                    &timestamp,
-                    &self.composer,
-                ),
-                reply_to,
-                mentions,
-                timestamp: now,
-                author: nick.clone(),
-                url,
-                avatar,
-                content: display_content,
-            },
-        );
+        let new_tweet = Tweet {
+            hash: compute_twt_hash(&url, &timestamp_str, &self.composer),
+            reply_to,
+            mentions,
+            timestamp: now,
+            author: nick.clone(),
+            url,
+            avatar,
+            content: display_content,
+        };
 
         if let Ok(mut file) = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&config.paths.twtxt)
         {
-            let _ = writeln!(file, "{}\t{}", timestamp, self.composer);
+            let _ = writeln!(file, "{}\t{}", timestamp_str, self.composer);
         }
+
+        self.tweets.insert(0, new_tweet);
+
+        self.sort_and_refresh();
 
         self.composer.clear();
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let scroll = self.feed.view(&self.tweets).map(Message::Feed);
+        let scroll = self
+            .feed
+            .view(&self.thread_tree, &self.tweets)
+            .map(Message::Feed);
 
         let composer = row![
             text_input("What's on your mind?", &self.composer)
