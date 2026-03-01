@@ -208,7 +208,11 @@ impl TimelinePage {
         self.tweets.insert(
             0,
             Tweet {
-                hash: compute_twt_hash(&nick, &timestamp, &self.composer),
+                hash: compute_twt_hash(
+                    &config.metadata.urls.first().cloned().unwrap_or_default(),
+                    &timestamp,
+                    &self.composer,
+                ),
                 reply_to,
                 mentions,
                 timestamp: now,
