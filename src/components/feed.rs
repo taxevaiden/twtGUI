@@ -6,11 +6,8 @@ use iced::{
 use crate::utils::{Tweet, build_feed};
 
 const BATCH_SIZE: usize = 25;
-
 const INITIAL_LOAD: usize = 30;
-
 const LOAD_THRESHOLD: f32 = 200.0;
-
 const TOP_THRESHOLD: f32 = 5.0;
 
 #[derive(Debug, Clone)]
