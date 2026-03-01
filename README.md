@@ -45,8 +45,7 @@ The configuration file is divided into two main sections:
 
 Contains information about you and your twtxt identity, along with optional metadata defined by the twtxt Metadata Extension.
 
-These values are stored locally in `config.toml`.  
-twtGUI does **not** automatically write metadata into your `twtxt.txt` file. (But it will soon!) If you want this information to appear publicly in your feed, you must edit `twtxt.txt` manually.
+These values are stored locally in `config.toml`, and will be automatically written to your `twtxt.txt` file when saved.
 
 - `urls`  
   A list of public URLs pointing to your `twtxt.txt` file.  
