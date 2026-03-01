@@ -88,8 +88,6 @@ These values are stored locally in `config.toml`, and will be automatically writ
 - `refresh`  
   A suggested refresh interval (in seconds) for how often clients should fetch the feed.
 
----
-
 #### Example
 
 ```toml
@@ -126,6 +124,8 @@ Contains paths to your twtxt files.
 [paths]
 twtxt = "C:/path/to/twtxt.txt"
 ```
+
+---
 
 ## Running
 
