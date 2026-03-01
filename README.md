@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="256" alt="The twtGUI logo" src="./assets/icon.svg">
+</p>
+
 # twtGUI
 
 A graphical client for twtxt
