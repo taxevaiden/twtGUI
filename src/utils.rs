@@ -140,66 +140,45 @@ pub fn compute_twt_hash(feed_url: &str, timestamp: &str, text: &str) -> String {
 }
 
 pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, Vec<OptLink>, Vec<WordSpan>) {
-    let subject_re = Regex::new(r"^\(#(?P<hash>[a-z0-9]{7})\)").unwrap();
-    let mention_re = Regex::new(r"@<(?P<first>[^\s>]+)(?:\s+(?P<second>[^>]+))?>").unwrap();
+    let subject_re = Regex::new(r"^\(#(?P<hash>[a-z0-9]{7})\)\s*").unwrap();
+    let mention_re = Regex::new(r"@<(?P<nick>[^\s>]+)(?:\s+(?P<url>[^>]+))?>").unwrap();
 
     let mut reply_to = None;
     let mut mentions = Vec::new();
     let mut display_content = String::new();
 
-    let mut current_input = raw_content;
+    let mut content = raw_content;
 
-    // the hash usually appears at the very start to indicate a reply
-    if let Some(cap) = subject_re.captures(current_input) {
-        reply_to = Some(cap.name("hash").unwrap().as_str().to_string());
-
-        let match_end = cap.get(0).unwrap().end();
-        current_input = current_input[match_end..].trim_start();
+    if let Some(cap) = subject_re.captures(content) {
+        reply_to = Some(cap["hash"].to_string());
+        let end = cap.get(0).unwrap().end();
+        content = &content[end..];
     }
 
-    // some clients put mentions right after the hash
-    // we check if the string STARTS with a mention
-    while let Some(cap) = mention_re.captures(current_input) {
-        let whole_match = cap.get(0).unwrap();
-        if whole_match.start() != 0 {
-            break; // not at the start anymore, move to body parsing
-        }
-
-        let first = cap.name("first").unwrap().as_str();
-        let second = cap.name("second").map(|m| m.as_str());
-
-        mentions.push(OptLink {
-            text: second.map(|s| s.trim().to_string()),
-            url: (second.unwrap_or(first)).trim().to_string(),
-        });
-
-        display_content.push_str(&format!("@{} ", first.trim()));
-
-        current_input = current_input[whole_match.end()..].trim_start();
-    }
-
-    // now we parse the rest of the text, looking for mentions mixed with words
     let mut last_end = 0;
-    for cap in mention_re.captures_iter(current_input) {
-        let whole_match = cap.get(0).unwrap();
 
-        display_content.push_str(&current_input[last_end..whole_match.start()]);
+    for cap in mention_re.captures_iter(content) {
+        let m = cap.get(0).unwrap();
 
-        let first = cap.name("first").unwrap().as_str();
-        let second = cap.name("second").map(|m| m.as_str());
+        display_content.push_str(&content[last_end..m.start()]);
+
+        let nick = cap.name("nick").unwrap().as_str();
+        let url = cap.name("url").map(|m| m.as_str()).unwrap_or(nick);
 
         mentions.push(OptLink {
-            text: second.map(|s| s.trim().to_string()),
-            url: (second.unwrap_or(first)).trim().to_string(),
+            text: Some(nick.to_string()),
+            url: url.to_string(),
         });
 
-        display_content.push_str(&format!("@{}", first.trim()));
+        // display as @nick
+        display_content.push_str(&format!("@{}", nick));
 
-        last_end = whole_match.end();
+        last_end = m.end();
     }
 
-    // push remaining text after the last mention
-    display_content.push_str(&current_input[last_end..]);
+    display_content.push_str(&content[last_end..]);
+
+    display_content = display_content.trim().to_string();
 
     // now we convert the text into WordSpans
     let mut spans = Vec::new();

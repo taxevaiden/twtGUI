@@ -175,7 +175,13 @@ impl ViewPage {
             .as_ref()
             .and_then(|m| m.following.as_ref())
             .cloned()
-            .unwrap_or(0);
+            .unwrap_or_else(|| {
+                if let Some(m) = &self.metadata {
+                    m.follows.len() as u64
+                } else {
+                    0
+                }
+            });
         let links = self
             .metadata
             .as_ref()

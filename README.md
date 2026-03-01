@@ -78,7 +78,7 @@ These values are stored locally in `config.toml`, and will be automatically writ
 
 - `following`  
   The number of feeds this feed follows.  
-  This is ignored by the client and is informational metadata from the feed itself.
+  This is automatically set by the client based on the number of entries in `follows`.
 
 - `links`  
   Additional profile links. Each entry contains:
