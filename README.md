@@ -15,6 +15,7 @@ A graphical client for twtxt
   - Mentions
   - [Twt Hash Extension](https://twtxt.dev/exts/twt-hash.html)
   - [Twt Subject Extension](https://twtxt.dev/exts/twt-subject.html)
+  - [Multiline Extension](https://twtxt.dev/exts/multiline.html)
   - [Metadata Extension](https://twtxt.dev/exts/metadata.html)
 
 If you're someone whose `twtxt.txt` only follows the twtxt v1 specification, this client's great for you!

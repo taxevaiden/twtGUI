@@ -2,7 +2,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use iced::{
     Alignment, Element, Length, Task,
-    widget::{button, column, image::Handle, row, text, text_input},
+    widget::{button, column, image::Handle, row, text, text_editor},
 };
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -15,7 +15,8 @@ use crate::utils::{
 };
 
 pub struct TimelinePage {
-    composer: String,
+    show_composer: bool,
+    composer: text_editor::Content,
     tweets: Vec<Tweet>,
     thread_tree: Vec<TweetNode>,
     local_avatar: Option<Handle>,
@@ -25,7 +26,9 @@ pub struct TimelinePage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ComposerChanged(String),
+    ComposerEdit(text_editor::Action),
+    ToggleComposer,
+    CancelCompose,
     PostPressed,
     Refresh,
     FeedLoaded {
@@ -44,7 +47,8 @@ pub enum Message {
 impl TimelinePage {
     pub fn new() -> Self {
         Self {
-            composer: String::new(),
+            show_composer: false,
+            composer: text_editor::Content::new(),
             tweets: Vec::new(),
             thread_tree: Vec::new(),
             local_avatar: None,
@@ -55,12 +59,24 @@ impl TimelinePage {
 
     pub fn update(&mut self, message: Message, config: &AppConfig) -> Task<Message> {
         match message {
-            Message::ComposerChanged(value) => {
-                self.composer = value;
+            Message::ComposerEdit(action) => {
+                self.composer.perform(action);
+                Task::none()
+            }
+
+            Message::ToggleComposer => {
+                self.show_composer = !self.show_composer;
+                Task::none()
+            }
+
+            Message::CancelCompose => {
+                self.show_composer = false;
+                self.composer = text_editor::Content::new();
                 Task::none()
             }
 
             Message::PostPressed => {
+                self.show_composer = false;
                 self.send_tweet(config);
                 Task::none()
             }
@@ -196,7 +212,9 @@ impl TimelinePage {
     }
 
     fn send_tweet(&mut self, config: &AppConfig) {
-        if self.composer.trim().is_empty() {
+        let composer_text = self.composer.text();
+
+        if composer_text.trim().is_empty() {
             return;
         }
 
@@ -206,7 +224,7 @@ impl TimelinePage {
             .clone()
             .unwrap_or_else(|| Handle::from_bytes(Bytes::new()));
 
-        let (reply_to, mentions, display_content) = parse_twt_contents(&self.composer);
+        let (reply_to, mentions, display_content) = parse_twt_contents(&composer_text);
 
         let nick = match &config.metadata.nick {
             Some(n) => n.clone(),
@@ -217,7 +235,7 @@ impl TimelinePage {
         let timestamp_str = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
         let new_tweet = Tweet {
-            hash: compute_twt_hash(&url, &timestamp_str, &self.composer),
+            hash: compute_twt_hash(&url, &timestamp_str, &composer_text),
             reply_to,
             mentions,
             timestamp: now,
@@ -232,49 +250,81 @@ impl TimelinePage {
             .append(true)
             .open(&config.paths.twtxt)
         {
-            let _ = writeln!(file, "{}\t{}", timestamp_str, self.composer);
+            let written = composer_text.replace("\n", "\\u2028");
+            let _ = writeln!(file, "{}\t{}", timestamp_str, written);
         }
 
         self.tweets.insert(0, new_tweet);
 
         self.sort_and_refresh();
 
-        self.composer.clear();
+        self.composer = text_editor::Content::new();
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let scroll = self
-            .feed
-            .view(&self.thread_tree, &self.tweets)
-            .map(Message::Feed);
-
-        let composer = row![
-            text_input("What's on your mind?", &self.composer)
-                .on_input(Message::ComposerChanged)
-                .padding(8),
-            button("Post")
-                .on_press(Message::PostPressed)
-                .padding([8, 16]),
-        ]
-        .spacing(8);
-
-        let refresh_button = button(
-            text("Refresh")
+        let compose_button = button(
+            text("Compose Tweet")
                 .align_x(Alignment::Center)
                 .width(Length::Fill),
         )
-        .on_press_maybe(if self.pending_downloads == 0 {
-            Some(Message::Refresh)
-        } else {
-            None
-        })
+        .on_press(Message::ToggleComposer)
         .width(Length::Fill)
         .padding([8, 16]);
 
-        column![composer, scroll, refresh_button]
+        let mut col = column!().spacing(8);
+
+        col = col.push(compose_button);
+
+        if self.show_composer {
+            col = col.push(
+                column![
+                    text_editor(&self.composer)
+                        .placeholder("What's on your mind?")
+                        .on_action(Message::ComposerEdit)
+                        .height(Length::Fill)
+                        .padding(8),
+                    row![
+                        button(text("Post").align_x(Alignment::Center).width(Length::Fill))
+                            .on_press(Message::PostPressed)
+                            .width(Length::Fill)
+                            .padding([8, 16]),
+                        button(
+                            text("Cancel")
+                                .align_x(Alignment::Center)
+                                .width(Length::Fill)
+                        )
+                        .on_press(Message::CancelCompose)
+                        .width(Length::Fill)
+                        .padding([8, 16]),
+                    ]
+                    .width(Length::Fill)
+                    .spacing(8)
+                ]
+                .spacing(8),
+            );
+        } else {
+            let scroll = self
+                .feed
+                .view(&self.thread_tree, &self.tweets)
+                .map(Message::Feed);
+
+            let refresh_button = button(
+                text("Refresh")
+                    .align_x(Alignment::Center)
+                    .width(Length::Fill),
+            )
+            .on_press_maybe(if self.pending_downloads == 0 {
+                Some(Message::Refresh)
+            } else {
+                None
+            })
             .width(Length::Fill)
-            .height(Length::Fill)
-            .spacing(8)
-            .into()
+            .padding([8, 16]);
+
+            col = col.push(scroll);
+            col = col.push(refresh_button);
+        }
+
+        col.width(Length::Fill).height(Length::Fill).into()
     }
 }

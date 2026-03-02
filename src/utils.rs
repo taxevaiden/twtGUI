@@ -40,6 +40,7 @@ pub struct Tweet {
     pub avatar: Handle,
 }
 
+#[derive(Debug, Clone)]
 pub struct TweetNode {
     pub index: usize,
     pub children: Vec<TweetNode>,
@@ -234,46 +235,59 @@ pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, Vec<OptLink>, V
     display_content = display_content.trim().to_string();
 
     // now we convert the text into WordSpans
+    let content = display_content.replace("\\u2028", "\n");
     let mut spans = Vec::new();
 
-    for word in display_content.trim().split_whitespace() {
-        let is_link = word.starts_with("http://") || word.starts_with("https://");
-        let is_mention = word.starts_with("@");
-
-        if is_link {
+    for segment in content.split_inclusive([' ', '\n']) {
+        if segment == "\n" {
             spans.push(WordSpan {
-                text: word.to_string(),
-                link: Some(word.to_string()),
+                text: "\n".to_string(),
+                link: None,
             });
-
             continue;
         }
 
-        if is_mention {
-            let mention_str = word.trim_start_matches('@');
-            for mention in &mentions {
-                if let Some(word) = mention.text.clone() {
-                    if word == mention_str {
-                        spans.push(WordSpan {
-                            text: format!("@{}", word),
-                            link: Some(mention.url.clone()),
-                        });
-                    }
+        if segment.trim().is_empty() {
+            spans.push(WordSpan {
+                text: segment.to_string(),
+                link: None,
+            });
+            continue;
+        }
+
+        let token = segment.trim_end();
+
+        // links
+        if token.starts_with("http://") || token.starts_with("https://") {
+            spans.push(WordSpan {
+                text: segment.to_string(),
+                link: Some(token.to_string()),
+            });
+            continue;
+        }
+
+        // mentions
+        if token.starts_with("@") {
+            let mention_str = token.trim_start_matches('@');
+
+            if let Some(mention) = mentions.iter().find(|m| {
+                if let Some(name) = &m.text {
+                    name == mention_str
                 } else {
-                    if mention.url.clone() == mention_str {
-                        spans.push(WordSpan {
-                            text: format!("@{}", mention.url.clone()),
-                            link: Some(mention.url.clone()),
-                        });
-                    }
+                    m.url == mention_str
                 }
+            }) {
+                spans.push(WordSpan {
+                    text: segment.to_string(),
+                    link: Some(mention.url.clone()),
+                });
+                continue;
             }
-
-            continue;
         }
 
+        // Normal text
         spans.push(WordSpan {
-            text: word.to_string(),
+            text: segment.to_string(),
             link: None,
         });
     }
@@ -424,19 +438,19 @@ where
 
         let mut spans = Vec::new();
 
-        for word in tweet.content.clone() {
-            if let Some(link) = word.link {
-                spans.push(
-                    span(word.text)
-                        .link(link)
-                        .color(Color::from_rgb(0.4, 0.6, 1.0)),
-                );
-                spans.push(span(" "));
+        for word in &tweet.content {
+            if word.text == "\n" {
+                spans.push(span("\n"));
                 continue;
             }
 
-            spans.push(span(word.text));
-            spans.push(span(" "));
+            let mut s = span(word.text.clone());
+
+            if let Some(link) = &word.link {
+                s = s.link(link.clone()).color(Color::from_rgb(0.4, 0.6, 1.0));
+            }
+
+            spans.push(s);
         }
 
         let content = rich_text(spans).on_link_click(on_link);
@@ -558,13 +572,17 @@ where
 
     let mut spans = Vec::new();
     for word in &tweet.content {
+        if word.text == "\n" {
+            spans.push(span("\n"));
+            continue;
+        }
         let mut s = span(word.text.clone());
         if let Some(link) = &word.link {
             s = s.link(link.clone()).color(Color::from_rgb(0.4, 0.6, 1.0));
         }
         spans.push(s);
-        spans.push(span(" "));
     }
+
     let content = rich_text(spans).on_link_click(on_link);
 
     let avatar_img = Image::new(tweet.avatar.clone())
@@ -579,8 +597,11 @@ where
 
     let mut thread_column = column![tweet_view].spacing(8);
 
-    for reply in &node.children {
-        // indent replies
+    // oldest to newest
+    let mut sorted_children = node.children.clone();
+    sorted_children.sort_by_key(|child| tweets[child.index].timestamp);
+
+    for reply in &sorted_children {
         let indented_reply = row![
             space().width(20),
             render_tweet_node(reply, tweets, on_link, depth + 1)
