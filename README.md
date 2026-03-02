@@ -164,7 +164,7 @@ You will need the following prerequisites:
 
 You can install both of these through a tool called [Rustup](https://rust-lang.org/learn/get-started/#:~:text=Rustup%3A%20the%20Rust%20installer%20and%20version%20management%20tool).
 
-After installing, simply clone this repository and run `cargo run` in the root directory. Cargo should automatically install any dependencies.
+After installing, simply clone this repository and run `cargo run` (or `cargo run --release` for a release build which takes longer to compile but is much faster) in the root directory. Cargo should automatically install any dependencies.
 
 If you encounter any issues, [please open one!](https://github.com/taxevaiden/twtGUI/issues/new)
 
