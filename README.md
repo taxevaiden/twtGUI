@@ -12,7 +12,7 @@ A graphical client for twtxt
 - Fetching (and caching) feeds
 - Following other feeds
 - **Some** of the [twtxt v2 specification](https://twtxt.dev)
-  - Mentions
+  - [Mentions](https://twtxt.dev/#mentions-and-threads:~:text=Mentions%20in%20the,a%20Twtxt%20URI.)
   - [Twt Hash Extension](https://twtxt.dev/exts/twt-hash.html)
   - [Twt Subject Extension](https://twtxt.dev/exts/twt-subject.html)
   - [Multiline Extension](https://twtxt.dev/exts/multiline.html)
