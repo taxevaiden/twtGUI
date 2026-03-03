@@ -5,6 +5,9 @@
 # twtGUI
 
 A graphical client for twtxt
+ 
+> [!IMPORTANT]
+> This project is under active development and may introduce breaking changes! Please pull regularly to stay up to date.
 
 ## What's supported?
 
