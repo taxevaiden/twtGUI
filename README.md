@@ -9,6 +9,10 @@ A graphical client for twtxt
 > [!IMPORTANT]
 > This project is under active development and may introduce breaking changes! Please pull regularly to stay up to date.
 
+<p align="center">
+  <img width="750" alt="The twtGUI client" src="./assets/client.png">
+</p>
+
 ## What's supported?
 
 - Sending markdown-formatted tweets

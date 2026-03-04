@@ -85,6 +85,7 @@ impl LazyThreadedFeed {
             Message::LinkClicked,
         ))
         .id(self.scroll_id.clone())
+        .spacing(8)
         .on_scroll(Message::Scrolled)
         .height(Length::Fill)
         .into()
