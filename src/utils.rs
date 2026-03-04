@@ -1,9 +1,15 @@
 use chrono::{DateTime, Local, Utc};
 use data_encoding::BASE32_NOPAD;
 use iced::{
-    Color, Length, font,
-    widget::{Column, Image, column, container, image::Handle, rich_text, row, space, span},
+    Background, Border, Color, Length, Padding, Pixels, font,
+    widget::{
+        Column, Image, column, container,
+        image::Handle,
+        markdown::{self, Highlight},
+        rich_text, row, space, span,
+    },
 };
+
 use regex::Regex;
 
 use bytes::Bytes;
@@ -30,14 +36,16 @@ fn cache_root() -> Result<PathBuf, String> {
 pub struct Tweet {
     pub hash: String,
     pub reply_to: Option<String>, // reply is a tweet hash, defined by something like (#abc1234) at the beginning of the tweet
-    pub mentions: Vec<OptLink>,
     pub timestamp: DateTime<Utc>,
     pub url: String,
     pub author: String,
-    pub content: Vec<WordSpan>,
+    pub content: String,
 
     #[serde(skip, default = "default_avatar")]
     pub avatar: Handle,
+
+    #[serde(skip)]
+    pub md_items: Vec<markdown::Item>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,20 +55,8 @@ pub struct TweetNode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WordSpan {
-    pub text: String,
-    pub link: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Link {
     pub text: String,
-    pub url: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OptLink {
-    pub text: Option<String>,
     pub url: String,
 }
 
@@ -193,14 +189,11 @@ pub fn compute_twt_hash(feed_url: &str, timestamp: &str, text: &str) -> String {
         .collect()
 }
 
-pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, Vec<OptLink>, Vec<WordSpan>) {
+pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, String) {
     let subject_re = Regex::new(r"^\(#(?P<hash>[a-z0-9]{7})\)\s*").unwrap();
     let mention_re = Regex::new(r"@<(?P<nick>[^\s>]+)(?:\s+(?P<url>[^>]+))?>").unwrap();
 
     let mut reply_to = None;
-    let mut mentions = Vec::new();
-    let mut display_content = String::new();
-
     let mut content = raw_content;
 
     if let Some(cap) = subject_re.captures(content) {
@@ -210,89 +203,29 @@ pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, Vec<OptLink>, V
     }
 
     let mut last_end = 0;
+    let mut markdown_content = String::new();
 
     for cap in mention_re.captures_iter(content) {
         let m = cap.get(0).unwrap();
 
-        display_content.push_str(&content[last_end..m.start()]);
+        markdown_content.push_str(&content[last_end..m.start()]);
 
         let nick = cap.name("nick").unwrap().as_str();
         let url = cap.name("url").map(|m| m.as_str()).unwrap_or(nick);
 
-        mentions.push(OptLink {
-            text: Some(nick.to_string()),
-            url: url.to_string(),
-        });
-
-        // display as @nick
-        display_content.push_str(&format!("@{}", nick));
+        markdown_content.push_str(&format!("[@{}]({})", nick, url));
 
         last_end = m.end();
     }
 
-    display_content.push_str(&content[last_end..]);
+    markdown_content.push_str(&content[last_end..]);
 
-    display_content = display_content.trim().to_string();
+    let final_markdown = markdown_content
+        .replace("\\u2028", "  \n")
+        .trim()
+        .to_string();
 
-    // now we convert the text into WordSpans
-    let content = display_content.replace("\\u2028", "\n");
-    let mut spans = Vec::new();
-
-    for segment in content.split_inclusive([' ', '\n']) {
-        if segment == "\n" {
-            spans.push(WordSpan {
-                text: "\n".to_string(),
-                link: None,
-            });
-            continue;
-        }
-
-        if segment.trim().is_empty() {
-            spans.push(WordSpan {
-                text: segment.to_string(),
-                link: None,
-            });
-            continue;
-        }
-
-        let token = segment.trim_end();
-
-        // links
-        if token.starts_with("http://") || token.starts_with("https://") {
-            spans.push(WordSpan {
-                text: segment.to_string(),
-                link: Some(token.to_string()),
-            });
-            continue;
-        }
-
-        // mentions
-        if token.starts_with("@") {
-            let mention_str = token.trim_start_matches('@');
-
-            if let Some(mention) = mentions.iter().find(|m| {
-                if let Some(name) = &m.text {
-                    name == mention_str
-                } else {
-                    m.url == mention_str
-                }
-            }) {
-                spans.push(WordSpan {
-                    text: segment.to_string(),
-                    link: Some(mention.url.clone()),
-                });
-                continue;
-            }
-        }
-
-        // Normal text
-        spans.push(WordSpan {
-            text: segment.to_string(),
-            link: None,
-        });
-    }
-
-    (reply_to, mentions, spans)
+    (reply_to, final_markdown)
 }
 
 pub fn parse_metadata(input: &str) -> Option<Metadata> {
@@ -382,12 +315,12 @@ pub fn parse_tweets(author: &str, url: &str, avatar: Option<Handle>, input: &str
         .filter(|line| !line.starts_with('#'))
         .filter_map(|line| {
             let (timestamp_str, raw_content) = line.split_once('\t')?;
-            let (reply_to, mentions, display_content) = parse_twt_contents(raw_content);
+            let (reply_to, display_content) = parse_twt_contents(raw_content);
+            let items = markdown::parse(&display_content).collect();
 
             Some(Tweet {
                 hash: compute_twt_hash(url, timestamp_str, raw_content),
                 reply_to,
-                mentions,
                 timestamp: DateTime::parse_from_rfc3339(timestamp_str)
                     .ok()?
                     .with_timezone(&Utc),
@@ -396,132 +329,11 @@ pub fn parse_tweets(author: &str, url: &str, avatar: Option<Handle>, input: &str
                 avatar: avatar
                     .clone()
                     .unwrap_or_else(|| Handle::from_path("assets/default_avatar.png")),
-                // Use the cleaned version for the UI
                 content: display_content,
+                md_items: items,
             })
         })
         .collect()
-}
-
-pub fn build_feed<'a, M, F>(tweets: &'a [Tweet], on_link: F) -> Column<'a, M>
-where
-    M: 'a,
-    F: Fn(String) -> M + Copy + 'a,
-{
-    use std::collections::HashMap;
-
-    let mut col = column!().spacing(12);
-
-    let mut bold = font::Font::with_name("Iosevka Aile");
-    bold.weight = font::Weight::Bold;
-
-    // build lookup map
-    let mut map: HashMap<&str, &Tweet> = HashMap::new();
-    for tweet in tweets {
-        map.insert(&tweet.hash, tweet);
-    }
-
-    for tweet in tweets {
-        let formatted_time = tweet
-            .timestamp
-            .with_timezone(&Local)
-            .format("%h %-d %Y %-I:%M %p");
-
-        let header = rich_text![
-            span(&tweet.author).font(bold).link(tweet.url.clone()),
-            span(" - "),
-            span(formatted_time.to_string()),
-            span(" "),
-            span(tweet.hash.clone())
-        ]
-        .on_link_click(on_link);
-
-        let mut spans = Vec::new();
-
-        for word in &tweet.content {
-            if word.text == "\n" {
-                spans.push(span("\n"));
-                continue;
-            }
-
-            let mut s = span(word.text.clone());
-
-            if let Some(link) = &word.link {
-                s = s.link(link.clone()).color(Color::from_rgb(0.4, 0.6, 1.0));
-            }
-
-            spans.push(s);
-        }
-
-        let content = rich_text(spans).on_link_click(on_link);
-
-        let avatar_img = Image::new(tweet.avatar.clone())
-            .width(Length::Fixed(40.0))
-            .height(Length::Fixed(40.0))
-            .border_radius(20);
-
-        if let Some(reply) = tweet.reply_to.as_ref() {
-            if let Some(reply_twt) = map.get(reply.as_str()) {
-                let reply_author = reply_twt.author.clone();
-                let reply_content = reply_twt.content.clone();
-
-                let mut reply_display = Vec::new();
-
-                reply_display.push(span("Reply to ").size(10));
-                reply_display.push(
-                    span(reply_author)
-                        .font(bold)
-                        .link(reply_twt.url.clone())
-                        .size(10),
-                );
-                reply_display.push(span(": ").size(10));
-                for reply_word in reply_content {
-                    if let Some(link) = reply_word.link {
-                        reply_display.push(
-                            span(reply_word.text)
-                                .link(link)
-                                .color(Color::from_rgb(0.4, 0.6, 1.0))
-                                .size(10),
-                        );
-                        reply_display.push(span(" ").size(10));
-                        continue;
-                    }
-
-                    reply_display.push(span(reply_word.text).size(10));
-                    reply_display.push(span(" ").size(10));
-                }
-                col = col.push(
-                    column![
-                        row![
-                            space().width(64),
-                            rich_text(reply_display).on_link_click(on_link)
-                        ],
-                        row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6),
-                    ]
-                    .padding(4)
-                    .width(Length::Fill),
-                );
-            } else {
-                col = col.push(
-                    container(
-                        row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6),
-                    )
-                    .padding(4)
-                    .width(Length::Fill),
-                );
-            }
-        } else {
-            col = col.push(
-                container(
-                    row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6),
-                )
-                .padding(4)
-                .width(Length::Fill),
-            );
-        }
-    }
-
-    col
 }
 
 pub fn build_threaded_feed<'a, M, F>(
@@ -550,11 +362,40 @@ fn render_tweet_node<'a, M, F>(
 ) -> Column<'a, M>
 where
     M: 'a,
-    F: Fn(String) -> M + Copy + 'a,
+    F: Fn(markdown::Uri) -> M + Copy + 'a,
 {
-    let tweet = &tweets[node.index];
+    let reg = font::Font::with_name("Iosevka Aile");
     let mut bold = font::Font::with_name("Iosevka Aile");
     bold.weight = font::Weight::Bold;
+
+    let tweet = &tweets[node.index];
+    let bg = iced::Theme::CatppuccinMocha.palette().background;
+    let code_bg = Color::from_rgb(bg.r * 0.75, bg.g * 0.75, bg.b * 0.75);
+
+    let content = markdown::view(
+        &tweet.md_items,
+        markdown::Settings::with_text_size(
+            Pixels(12.0),
+            markdown::Style {
+                font: reg,
+                link_color: Color::from_rgb(0.4, 0.6, 1.0),
+                inline_code_font: reg,
+                inline_code_color: Color::from_rgb(0.85, 0.85, 0.85),
+                inline_code_highlight: Highlight {
+                    background: Background::Color(code_bg),
+                    border: Border::default(),
+                },
+                inline_code_padding: Padding::from(2.0),
+                code_block_font: reg,
+            },
+        ),
+    )
+    .map(on_link);
+
+    let avatar_img = Image::new(tweet.avatar.clone())
+        .width(Length::Fixed(40.0))
+        .height(Length::Fixed(40.0))
+        .border_radius(20);
 
     let formatted_time = tweet
         .timestamp
@@ -570,34 +411,19 @@ where
     ]
     .on_link_click(on_link);
 
-    let mut spans = Vec::new();
-    for word in &tweet.content {
-        if word.text == "\n" {
-            spans.push(span("\n"));
-            continue;
-        }
-        let mut s = span(word.text.clone());
-        if let Some(link) = &word.link {
-            s = s.link(link.clone()).color(Color::from_rgb(0.4, 0.6, 1.0));
-        }
-        spans.push(s);
-    }
-
-    let content = rich_text(spans).on_link_click(on_link);
-
-    let avatar_img = Image::new(tweet.avatar.clone())
-        .width(Length::Fixed(40.0))
-        .height(Length::Fixed(40.0))
-        .border_radius(20);
-
-    let tweet_view =
-        container(row![avatar_img, column![header, content].spacing(4).padding(4)].spacing(6))
-            .padding(4)
-            .width(Length::Fill);
+    let tweet_view = container(
+        row![
+            avatar_img,
+            column![header, container(content)]
+                .padding([4.0, 0.0])
+                .spacing(4)
+        ]
+        .spacing(8),
+    )
+    .padding(4);
 
     let mut thread_column = column![tweet_view].spacing(8);
 
-    // oldest to newest
     let mut sorted_children = node.children.clone();
     sorted_children.sort_by_key(|child| tweets[child.index].timestamp);
 
@@ -813,7 +639,11 @@ pub async fn download_and_parse_twtxt(
     if let Ok(cached_str) = std::fs::read_to_string(&parsed_path) {
         if let Ok(cache) = serde_json::from_str::<ParsedCache>(&cached_str) {
             if cache.content_hash == raw_hash {
-                return Ok(apply_nick_override(cache.bundle, &nick, use_nick));
+                let mut bundle = cache.bundle;
+                for tweet in &mut bundle.tweets {
+                    tweet.md_items = markdown::parse(&tweet.content).collect();
+                }
+                return Ok(apply_nick_override(bundle, &nick, use_nick));
             }
         }
     }

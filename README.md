@@ -11,8 +11,8 @@ A graphical client for twtxt
 
 ## What's supported?
 
-- Sending tweets
-- Fetching (and caching) feeds
+- Sending markdown-formatted tweets
+- Fetching, viewing, and caching feeds
 - Following other feeds
 - **Some** of the [twtxt v2 specification](https://twtxt.dev)
   - [Mentions](https://twtxt.dev/#mentions-and-threads:~:text=Mentions%20in%20the,a%20Twtxt%20URI.)

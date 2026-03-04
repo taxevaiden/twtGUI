@@ -2,7 +2,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use iced::{
     Alignment, Element, Length, Task,
-    widget::{button, column, image::Handle, row, text, text_editor},
+    widget::{button, column, image::Handle, markdown, row, text, text_editor},
 };
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -224,7 +224,7 @@ impl TimelinePage {
             .clone()
             .unwrap_or_else(|| Handle::from_bytes(Bytes::new()));
 
-        let (reply_to, mentions, display_content) = parse_twt_contents(&composer_text);
+        let (reply_to, display_content) = parse_twt_contents(&composer_text);
 
         let nick = match &config.metadata.nick {
             Some(n) => n.clone(),
@@ -234,15 +234,17 @@ impl TimelinePage {
         let url = config.metadata.urls.first().cloned().unwrap_or_default();
         let timestamp_str = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
+        let items = markdown::parse(&display_content).collect();
+
         let new_tweet = Tweet {
             hash: compute_twt_hash(&url, &timestamp_str, &composer_text),
             reply_to,
-            mentions,
             timestamp: now,
             author: nick.clone(),
             url,
             avatar,
             content: display_content,
+            md_items: items,
         };
 
         if let Ok(mut file) = OpenOptions::new()

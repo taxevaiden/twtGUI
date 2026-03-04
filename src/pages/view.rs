@@ -8,17 +8,20 @@ use iced::{
     },
 };
 
-use crate::components::feed::{self, LazyFeed};
-use crate::config::AppConfig;
-use crate::utils::{FeedBundle, Metadata, Tweet, download_and_parse_twtxt, download_binary};
+use crate::utils::{
+    FeedBundle, Metadata, Tweet, TweetNode, download_and_parse_twtxt, download_binary,
+};
+use crate::{components::threaded_feed, config::AppConfig};
+use crate::{components::threaded_feed::LazyThreadedFeed, utils::build_threads};
 
 pub struct ViewPage {
     composer: String,
     avatar_bytes: Option<Handle>,
     tweets: Vec<Tweet>,
+    thread_tree: Vec<TweetNode>,
     metadata: Option<Metadata>,
     pending_downloads: usize,
-    feed: LazyFeed,
+    feed: LazyThreadedFeed,
 }
 
 #[derive(Debug, Clone)]
@@ -35,7 +38,7 @@ pub enum Message {
     },
     RedirectToPage(crate::app::RedirectInfo),
     LinkClicked(String),
-    Feed(feed::Message),
+    Feed(threaded_feed::Message),
 }
 
 impl ViewPage {
@@ -44,9 +47,10 @@ impl ViewPage {
             composer: config.metadata.urls.first().cloned().unwrap_or_default(),
             avatar_bytes: None,
             tweets: Vec::new(),
+            thread_tree: Vec::new(),
             metadata: None,
             pending_downloads: 0,
-            feed: LazyFeed::new(0),
+            feed: LazyThreadedFeed::new(0),
         }
     }
 
@@ -59,6 +63,7 @@ impl ViewPage {
 
             Message::ViewPressed => {
                 self.tweets.clear();
+                self.thread_tree.clear();
                 self.metadata = None;
                 self.avatar_bytes = None;
                 self.pending_downloads = 1;
@@ -80,6 +85,7 @@ impl ViewPage {
                         println!("Feed successfully loaded for {}", url);
                         self.metadata = bundle.metadata.clone();
                         self.tweets = bundle.tweets;
+                        self.thread_tree = build_threads(&self.tweets);
 
                         self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
                         self.feed.reset(self.tweets.len());
@@ -142,7 +148,7 @@ impl ViewPage {
                 }
             }
 
-            Message::Feed(feed::Message::RedirectToPage(info)) => {
+            Message::Feed(threaded_feed::Message::RedirectToPage(info)) => {
                 Task::done(Message::RedirectToPage(info))
             }
 
@@ -201,7 +207,10 @@ impl ViewPage {
                 .center_y(Length::Fixed(128.0))
                 .into()
         };
-        let timeline = self.feed.view(&self.tweets).map(Message::Feed);
+        let timeline = self
+            .feed
+            .view(&self.thread_tree, &self.tweets)
+            .map(Message::Feed);
 
         let mut col: iced::widget::Column<Message> = column!().spacing(8);
 
