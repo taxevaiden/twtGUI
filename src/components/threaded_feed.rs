@@ -1,7 +1,8 @@
-use crate::utils::{Tweet, TweetNode, build_threaded_feed};
+use crate::utils::{Tweet, TweetNode};
 use iced::{
     Element, Length, Task,
-    widget::{Id, scrollable},
+    widget::markdown,
+    widget::{Column, Id, column, row, scrollable, space},
 };
 
 const BATCH_SIZE: usize = 10; // threads can be large, so smaller batches are safer
@@ -14,6 +15,7 @@ pub enum Message {
     Scrolled(scrollable::Viewport),
     LinkClicked(String),
     RedirectToPage(crate::app::RedirectInfo),
+    TweetMessage(crate::components::tweet::Message),
 }
 
 pub struct LazyThreadedFeed {
@@ -69,6 +71,12 @@ impl LazyThreadedFeed {
                     Task::none()
                 }
             }
+
+            Message::TweetMessage(msg) => match msg {
+                crate::components::tweet::Message::LinkClicked(url) => {
+                    Task::done(Message::LinkClicked(url))
+                }
+            },
         }
     }
 
@@ -79,15 +87,63 @@ impl LazyThreadedFeed {
     ) -> Element<'a, Message> {
         let visible_threads = &threads[..self.visible_threads_count.min(threads.len())];
 
-        scrollable(build_threaded_feed(
-            visible_threads,
-            tweets,
-            Message::LinkClicked,
-        ))
+        scrollable(build_threaded_feed(visible_threads, tweets, |url| {
+            Message::TweetMessage(crate::components::tweet::Message::LinkClicked(url))
+        }))
         .id(self.scroll_id.clone())
         .spacing(8)
         .on_scroll(Message::Scrolled)
         .height(Length::Fill)
         .into()
     }
+}
+
+fn build_threaded_feed<'a, M, F>(
+    threads: &'a [TweetNode],
+    tweets: &'a [Tweet],
+    on_link: F,
+) -> Column<'a, M>
+where
+    M: 'a,
+    F: Fn(String) -> M + Copy + 'a,
+{
+    let mut col = column!().spacing(24);
+
+    for thread in threads {
+        col = col.push(render_tweet_node(thread, tweets, on_link, 0));
+    }
+
+    col
+}
+
+fn render_tweet_node<'a, M, F>(
+    node: &TweetNode,
+    tweets: &'a [Tweet],
+    on_link: F,
+    depth: usize,
+) -> Column<'a, M>
+where
+    M: 'a,
+    F: Fn(markdown::Uri) -> M + Copy + 'a,
+{
+    let tweet = &tweets[node.index];
+    let tweet_component = crate::components::tweet::TweetComponent::new(tweet);
+    let tweet_view = tweet_component.view().map(move |msg| match msg {
+        crate::components::tweet::Message::LinkClicked(url) => on_link(url),
+    });
+
+    let mut thread_column = column![tweet_view].spacing(8);
+
+    let mut sorted_children = node.children.clone();
+    sorted_children.sort_by_key(|child| tweets[child.index].timestamp);
+
+    for reply in &sorted_children {
+        let indented_reply = row![
+            space().width(20),
+            render_tweet_node(reply, tweets, on_link, depth + 1)
+        ];
+        thread_column = thread_column.push(indented_reply);
+    }
+
+    thread_column
 }
