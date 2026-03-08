@@ -1,3 +1,8 @@
+//! Core application state and top-level view handling.
+//!
+//! This module wires the high-level pages together and manages the current
+//! selected page, routing messages between sub-pages and updating the UI.
+
 use iced::{
     Element, Task,
     widget::{button, column, container, row},
@@ -6,6 +11,9 @@ use iced::{
 use crate::config::AppConfig;
 use crate::pages::{following, timeline, view};
 
+/// The application state (model) used by `iced`.
+///
+/// Keeps the currently selected page and all of the page-specific state.
 pub struct TwtxtApp {
     page: Page,
     config: AppConfig,
@@ -14,29 +22,48 @@ pub struct TwtxtApp {
     following: following::FollowingPage,
 }
 
+/// The set of messages that can be sent to the top-level application.
+///
+/// Messages are used by `iced` to drive updates and route events to submodules.
 #[derive(Debug, Clone)]
 pub enum Message {
+    /// Switch to the timeline page
     SwitchToTimeline,
+    /// Switch to the view page
     SwitchToView,
+    /// Switch to the following page
     SwitchToFollowing,
+    /// A message originating from the timeline page (forwarded)
     Timeline(timeline::Message),
+    /// A message originating from the view page (forwarded)
     View(view::Message),
+    /// A message originating from the following page (forwarded)
     Following(following::Message),
 }
 
+/// A simple top-level routing enum for the active page.
 #[derive(Debug, Clone, Default)]
 pub enum Page {
+    /// Show the timeline feed.
     #[default]
     Timeline,
+    /// Show a single tweet / thread view.
     View,
+    /// Show the following list.
     Following,
 }
 
+/// Information used when a page wants to redirect the application to another page.
+///
+/// Currently only used by `ViewPage` to indicate which feed should be loaded and then shown.
 #[derive(Debug, Clone)]
 pub struct RedirectInfo {
+    /// The target page to switch to.
     pub page: Page,
 
-    // This information is specific to the ViewPage, however this is written in a way that it should be easy to implement this for other pages
+    /// Content relevant to the redirect target.
+    ///
+    /// For example, when switching to `View`, this holds the URL of a feed to display.
     pub content: String,
 }
 

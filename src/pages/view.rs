@@ -1,3 +1,7 @@
+//! A page that renders a single twtxt feed and its metadata.
+//!
+//! This page can load an arbitrary feed URL and display its profile header + timeline.
+
 use bytes::Bytes;
 use iced::{
     Alignment, Color, Element, Length, Task,
@@ -14,6 +18,9 @@ use crate::utils::{
 use crate::{components::threaded_feed, config::AppConfig};
 use crate::{components::threaded_feed::LazyThreadedFeed, utils::build_threads};
 
+/// The state for the view page.
+///
+/// This page is responsible for displaying a single feed and its metadata.
 pub struct ViewPage {
     composer: String,
     avatar_bytes: Option<Handle>,
@@ -24,20 +31,28 @@ pub struct ViewPage {
     feed: LazyThreadedFeed,
 }
 
+/// Messages used to update the view page.
 #[derive(Debug, Clone)]
 pub enum Message {
+    /// The feed URL input changed.
     ComposerChanged(String),
+    /// The user pressed the "View" button.
     ViewPressed,
+    /// A feed has finished loading.
     FeedLoaded {
         url: String,
         result: Result<FeedBundle, String>,
     },
+    /// An avatar image has finished downloading.
     AvatarLoaded {
         url: String,
         result: Result<Bytes, String>,
     },
+    /// Navigate to another page.
     RedirectToPage(crate::app::RedirectInfo),
+    /// A link in the metadata was clicked.
     LinkClicked(String),
+    /// Messages forwarded from the threaded feed component.
     Feed(threaded_feed::Message),
 }
 

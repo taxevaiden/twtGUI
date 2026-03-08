@@ -1,3 +1,7 @@
+//! A lazily-rendered threaded feed component.
+//!
+//! Renders a subset of threads and loads more as the user scrolls.
+
 use crate::components::tweet::{self, TweetComponent};
 use crate::utils::{Tweet, TweetNode};
 use iced::{
@@ -5,24 +9,37 @@ use iced::{
     widget::{Column, Id, column, row, scrollable, space},
 };
 
-const BATCH_SIZE: usize = 10; // threads can be large, so smaller batches are safer
+/// How many additional threads to load when reaching the bottom of the scroll.
+const BATCH_SIZE: usize = 10; // Threads can be large, so smaller batches are safer
+/// How many threads to load initially.
 const INITIAL_LOAD: usize = 25;
+/// How close to the bottom of the scroll before loading more threads.
 const LOAD_THRESHOLD: f32 = 400.0;
+/// How close to the top of the scroll to reset to the initial load size.
 const TOP_THRESHOLD: f32 = 10.0;
 
+/// A memoized thread node with its rendered component and child threads.
 struct BuiltNode {
     component: TweetComponent,
     children: Vec<BuiltNode>,
 }
 
+/// Messages emitted by the threaded feed component.
 #[derive(Debug, Clone)]
 pub enum Message {
+    /// The scroll position changed.
     Scrolled(scrollable::Viewport),
+    /// A link inside a tweet was clicked.
     LinkClicked(String),
+    /// Request to navigate to another page.
     RedirectToPage(crate::app::RedirectInfo),
+    /// A message coming from a specific tweet component.
     TweetMessage(usize, tweet::Message),
 }
 
+/// Lazy-loading threaded feed view.
+///
+/// This component renders tweet threads incrementally as the user scrolls.
 pub struct LazyThreadedFeed {
     scroll_id: Id,
     visible_threads_count: usize,

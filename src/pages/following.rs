@@ -1,3 +1,5 @@
+//! A page for managing the list of followed feeds.
+
 use iced::{
     Alignment, Element, Length,
     widget::{button, column, row, text, text_input},
@@ -5,6 +7,9 @@ use iced::{
 
 use crate::{config::AppConfig, utils::Link};
 
+/// State for the following page.
+///
+/// Holds the current editing state and the in-progress form fields.
 #[derive(Default)]
 pub struct FollowingPage {
     pub new_name: String,
@@ -15,17 +20,27 @@ pub struct FollowingPage {
     pub edit_url: String,
 }
 
+/// Messages used to update the following page.
 #[derive(Debug, Clone)]
 pub enum Message {
+    /// The new follow name changed.
     NameChanged(String),
+    /// The new follow URL changed.
     UrlChanged(String),
+    /// Add the new follow item.
     AddPressed,
+    /// Remove an existing follow item.
     RemovePressed(String),
 
+    /// Start editing an existing follow item.
     EditPressed(String),
+    /// Change the edit name field.
     EditNameChanged(String),
+    /// Change the edit URL field.
     EditUrlChanged(String),
+    /// Save the edited follow item.
     SaveEdit,
+    /// Cancel the current edit.
     CancelEdit,
 }
 

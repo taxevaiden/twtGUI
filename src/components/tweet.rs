@@ -1,3 +1,5 @@
+//! A tweet renderer component, responsible for displaying a single tweet line.
+
 use crate::utils::{Tweet, download_binary};
 use bytes::Bytes;
 use chrono::Local;
@@ -7,12 +9,16 @@ use iced::{
     widget::{Image, column, container, image::Handle, rich_text, row, span},
 };
 
+/// Messages used by the tweet component.
 #[derive(Debug, Clone)]
 pub enum Message {
+    /// A link inside the tweet markdown was clicked.
     LinkClicked(String),
+    /// An image inside the tweet finished downloading.
     ImageLoaded(usize, Result<Bytes, String>), // usize = index into image_urls
 }
 
+/// A widget that renders a single tweet, including inline images and avatar.
 pub struct TweetComponent {
     pub index: usize,
     image_urls: Vec<String>,
@@ -140,6 +146,7 @@ impl TweetComponent {
     }
 }
 
+/// Recursively collects image URLs from markdown items.
 fn collect_image_urls(items: &[markdown::Item]) -> Vec<String> {
     items
         .iter()

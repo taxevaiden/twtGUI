@@ -1,3 +1,5 @@
+//! A page that displays the user's timeline and allows composing new tweets.
+
 use bytes::Bytes;
 use chrono::Utc;
 use iced::{
@@ -14,6 +16,10 @@ use crate::utils::{
     download_binary, parse_metadata, parse_tweets, parse_twt_contents,
 };
 
+/// The state for the timeline page.
+///
+/// This page is responsible for showing a combined timeline from the user's
+/// own feed and any followed feeds, as well as providing a composer for new tweets.
 pub struct TimelinePage {
     show_composer: bool,
     composer: text_editor::Content,
@@ -24,23 +30,33 @@ pub struct TimelinePage {
     feed: LazyThreadedFeed,
 }
 
+/// Messages used to update the timeline page.
 #[derive(Debug, Clone)]
 pub enum Message {
+    /// The composer text was edited.
     ComposerEdit(text_editor::Action),
+    /// Open/close the composer panel.
     ToggleComposer,
+    /// Cancel the current composition.
     CancelCompose,
+    /// Post the composed tweet.
     PostPressed,
+    /// Refresh all feeds.
     Refresh,
+    /// A feed finished loading (either local or remote).
     FeedLoaded {
         nick: String,
         url: String,
         result: Result<FeedBundle, String>,
     },
+    /// An avatar image has finished downloading.
     AvatarLoaded {
         url: String, // The URL of the feed these tweets belong to
         result: Result<Bytes, String>,
     },
+    /// Trigger a navigation to another page.
     RedirectToPage(crate::app::RedirectInfo),
+    /// Messages forwarded from the threaded feed component.
     Feed(threaded_feed::Message),
 }
 

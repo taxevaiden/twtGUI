@@ -1,3 +1,8 @@
+//! Configuration management for the application.
+//!
+//! This module handles reading and writing the `config.toml` stored in the user's
+//! configuration directory and keeping it in sync with any local `twtxt.txt` data.
+
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -10,6 +15,10 @@ use std::{
 use crate::utils::Metadata;
 use std::collections::{HashMap, HashSet};
 
+/// Returns the canonical path where the application's config file is stored.
+///
+/// Ensures the configuration directory exists and returns a `config.toml` file path
+/// inside the platform-specific config directory.
 fn config_path() -> Result<PathBuf, Box<dyn Error>> {
     let proj = ProjectDirs::from("com", "taxevaiden", "twtGUI")
         .ok_or("Could not determine config directory")?;
@@ -20,15 +29,24 @@ fn config_path() -> Result<PathBuf, Box<dyn Error>> {
     Ok(dir.join("config.toml"))
 }
 
+/// Top-level application configuration stored in `config.toml`.
+///
+/// This includes a cached set of metadata from the user's feed as well as
+/// any persisted file paths the user has selected.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
+    /// Cached feed metadata parsed from the user's `twtxt.txt`.
     pub metadata: Metadata,
+
+    /// Persisted file paths used by the application.
     pub paths: AppFilePaths,
 }
 
+/// Paths to files that are used or created by the application.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppFilePaths {
+    /// Path to the user's local `twtxt.txt` file.
     pub twtxt: String,
 }
 
@@ -55,6 +73,10 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    /// Loads the configuration from disk.
+    ///
+    /// If the config file does not exist, or is empty, this will create a default
+    /// config and persist it immediately.
     pub fn load() -> Result<Self, Box<dyn Error>> {
         let path = config_path()?;
 
@@ -76,6 +98,10 @@ impl AppConfig {
         Ok(config)
     }
 
+    /// Saves the configuration to disk.
+    ///
+    /// This also ensures the saved metadata is kept in sync with the linked
+    /// `twtxt.txt` file, updating any header lines as needed.
     pub fn save(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if self.metadata.following.is_none()
             || self.metadata.following.unwrap_or(0) != self.metadata.follows.len() as u64
