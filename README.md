@@ -4,8 +4,6 @@
 
 # twtGUI
 
-
-
 <table>
 <tr>
 <td>
