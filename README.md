@@ -4,7 +4,7 @@
 
 # twtGUI
 
-<img align="right" width="365" alt="The twtGUI client" src="./assets/client.png" style="border-radius: 8px">
+<img align="right" width="390" alt="The twtGUI client" src="./assets/client.png" style="border-radius: 8px">
 
 A graphical client for twtxt
  
