@@ -27,7 +27,7 @@ A graphical client for twtxt
 - Sending markdown-formatted tweets
 - Fetching, viewing, and caching feeds
 - Following other feeds
-- **Some** of the [twtxt v2 specification](https://twtxt.dev)
+- **Most** of the [twtxt v2 specification](https://twtxt.dev)
   - [Mentions](https://twtxt.dev/#mentions-and-threads:~:text=Mentions%20in%20the,a%20Twtxt%20URI.)
   - [Twt Hash Extension](https://twtxt.dev/exts/twt-hash.html)
   - [Twt Subject Extension](https://twtxt.dev/exts/twt-subject.html)
@@ -45,7 +45,7 @@ The file is automatically created on first launch if it does not already exist.
 
 There is currently no dedicated settings page in twtGUI, so you must edit `config.toml` manually to change settings such as your nickname or the path to your `twtxt.txt` file.
 
-Feeds you follow can be managed through the **Following** page inside twtGUI.
+However, feeds you follow can be managed through the **Following** page inside twtGUI.
 
 If you need to edit `config.toml`, you can find it in your system’s configuration directory:
 
