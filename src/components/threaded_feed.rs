@@ -4,9 +4,11 @@
 
 use crate::components::tweet::{self, TweetComponent};
 use crate::utils::{Tweet, TweetNode};
+use iced::border::Radius;
+use iced::{Border, Theme};
 use iced::{
     Element, Length, Task,
-    widget::{Column, Id, column, row, scrollable, space},
+    widget::{Column, Id, column, container, row, scrollable, space},
 };
 
 /// How many additional threads to load when reaching the bottom of the scroll.
@@ -124,9 +126,25 @@ impl LazyThreadedFeed {
         let visible =
             &self.built_threads[..self.visible_threads_count.min(self.built_threads.len())];
 
-        let mut col = column!().spacing(24);
+        fn container_style(theme: &Theme) -> container::Style {
+            container::Style {
+                border: Border {
+                    color: theme.palette().text,
+                    width: 1.0,
+                    radius: Radius::new(8.0),
+                },
+                ..Default::default()
+            }
+        }
+
+        let mut col = column!().spacing(8);
         for node in visible {
-            col = col.push(render_built_node(node, tweets));
+            col = col.push(
+                container(render_built_node(node, tweets))
+                    .width(Length::Fill)
+                    .padding(12.0)
+                    .style(container_style),
+            );
         }
 
         scrollable(col)
@@ -191,7 +209,7 @@ fn render_built_node<'a>(node: &'a BuiltNode, tweets: &'a [Tweet]) -> Column<'a,
     let mut thread_col = column![tweet_view].spacing(8);
 
     for child in &node.children {
-        let indented = row![space().width(20), render_built_node(child, tweets)];
+        let indented = row![space().width(32), render_built_node(child, tweets)];
         thread_col = thread_col.push(indented);
     }
 

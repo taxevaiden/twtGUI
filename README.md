@@ -4,14 +4,23 @@
 
 # twtGUI
 
+
+
+<table>
+<tr>
+<td>
+
 A graphical client for twtxt
  
 > [!IMPORTANT]
 > This project is under active development and may introduce breaking changes! Please pull regularly to stay up to date.
 
-<p align="center">
-  <img width="750" alt="The twtGUI client" src="./assets/client.png">
-</p>
+</td>
+<td>
+    <img width="450" alt="The twtGUI client" src="./assets/client.png" style="border-radius: 8px">
+</td>
+</tr>
+</table>
 
 ## What's supported?
 

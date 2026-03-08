@@ -103,9 +103,9 @@ impl TweetComponent {
         .map(Message::LinkClicked);
 
         let avatar_img = Image::new(tweet.avatar.clone())
-            .width(Length::Fixed(40.0))
-            .height(Length::Fixed(40.0))
-            .border_radius(20);
+            .width(Length::Fixed(48.0))
+            .height(Length::Fixed(48.0))
+            .border_radius(24);
 
         let formatted_time = tweet
             .timestamp
@@ -136,10 +136,10 @@ impl TweetComponent {
             row![
                 avatar_img,
                 column![header, container(content), images_col]
-                    .padding([4.0, 0.0])
+                    .padding([6.0, 0.0])
                     .spacing(4)
             ]
-            .spacing(8),
+            .spacing(12),
         )
         .padding(4)
         .into()
