@@ -42,16 +42,20 @@ pub enum Message {
 }
 
 impl ViewPage {
-    pub fn new(config: &AppConfig) -> Self {
-        Self {
-            composer: config.metadata.urls.first().cloned().unwrap_or_default(),
-            avatar_bytes: None,
-            tweets: Vec::new(),
-            thread_tree: Vec::new(),
-            metadata: None,
-            pending_downloads: 0,
-            feed: LazyThreadedFeed::new(0),
-        }
+    pub fn new(config: &AppConfig) -> (Self, Task<Message>) {
+        let (feed, feed_task) = LazyThreadedFeed::new(&[], &[]);
+        (
+            Self {
+                composer: config.metadata.urls.first().cloned().unwrap_or_default(),
+                avatar_bytes: None,
+                tweets: Vec::new(),
+                thread_tree: Vec::new(),
+                metadata: None,
+                pending_downloads: 0,
+                feed,
+            },
+            feed_task.map(Message::Feed),
+        )
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -67,69 +71,65 @@ impl ViewPage {
                 self.metadata = None;
                 self.avatar_bytes = None;
                 self.pending_downloads = 1;
-                self.feed.reset(0);
+                let reset_task = self.feed.reset(&[], &[]).map(Message::Feed);
 
                 let url = self.composer.clone();
 
-                Task::perform(
-                    download_and_parse_twtxt("unknown".into(), url.clone(), false),
-                    move |result| Message::FeedLoaded { url, result },
-                )
+                Task::batch([
+                    reset_task,
+                    Task::perform(
+                        download_and_parse_twtxt("unknown".into(), url.clone(), false),
+                        move |result| Message::FeedLoaded { url, result },
+                    ),
+                ])
             }
 
             Message::FeedLoaded { url, result } => {
                 self.pending_downloads -= 1;
 
-                match result {
-                    Ok(bundle) => {
-                        println!("Feed successfully loaded for {}", url);
-                        self.metadata = bundle.metadata.clone();
-                        self.tweets = bundle.tweets;
-                        self.thread_tree = build_threads(&self.tweets);
+                let Ok(bundle) = result else {
+                    println!("Error loading feed for {}", url);
+                    return Task::none();
+                };
 
-                        self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-                        self.feed.reset(self.tweets.len());
+                println!("Feed successfully loaded for {}", url);
+                self.metadata = bundle.metadata.clone();
+                self.tweets = bundle.tweets;
+                self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                let thread_tree = build_threads(&self.tweets);
+                let feed_task = self
+                    .feed
+                    .reset(&thread_tree, &self.tweets)
+                    .map(Message::Feed);
 
-                        // Download avatar if present
-                        if let Some(meta) = bundle.metadata {
-                            if let Some(avatar_url) = meta.avatar {
-                                self.pending_downloads += 1;
-                                return Task::perform(download_binary(avatar_url), move |res| {
-                                    Message::AvatarLoaded {
-                                        url: url.clone(),
-                                        result: res,
-                                    }
-                                });
+                let avatar_task = bundle
+                    .metadata
+                    .and_then(|meta| meta.avatar)
+                    .map(|avatar_url| {
+                        self.pending_downloads += 1;
+                        Task::perform(download_binary(avatar_url), move |res| {
+                            Message::AvatarLoaded {
+                                url: url.clone(),
+                                result: res,
                             }
-                        }
-                    }
+                        })
+                    })
+                    .unwrap_or_else(Task::none);
 
-                    Err(e) => {
-                        println!("Error: {}", e);
-                    }
-                }
-
-                Task::none()
+                Task::batch([feed_task, avatar_task])
             }
 
             Message::AvatarLoaded { url, result } => {
-                match result {
-                    Ok(bytes) => {
-                        println!("Avatar successfully loaded for {}", url);
-                        let handle = Handle::from_bytes(bytes);
-                        self.avatar_bytes = Some(handle.clone());
+                if let Ok(bytes) = result {
+                    println!("Avatar successfully loaded for {}", url);
+                    let handle = Handle::from_bytes(bytes);
+                    self.avatar_bytes = Some(handle.clone());
 
-                        // Patch tweets
-                        for tweet in self.tweets.iter_mut() {
-                            if tweet.url == url {
-                                tweet.avatar = handle.clone();
-                            }
-                        }
+                    for tweet in self.tweets.iter_mut().filter(|t| t.url == url) {
+                        tweet.avatar = handle.clone();
                     }
-
-                    Err(e) => {
-                        println!("Error: {}", e);
-                    }
+                } else if let Err(e) = result {
+                    println!("Error loading avatar for {}: {}", url, e);
                 }
 
                 self.pending_downloads -= 1;
@@ -152,7 +152,7 @@ impl ViewPage {
                 Task::done(Message::RedirectToPage(info))
             }
 
-            Message::Feed(msg) => self.feed.update(msg, self.tweets.len()).map(Message::Feed),
+            Message::Feed(msg) => self.feed.update(msg).map(Message::Feed),
 
             Message::RedirectToPage(info) => Task::done(Message::RedirectToPage(info)),
         }
@@ -207,10 +207,7 @@ impl ViewPage {
                 .center_y(Length::Fixed(128.0))
                 .into()
         };
-        let timeline = self
-            .feed
-            .view(&self.thread_tree, &self.tweets)
-            .map(Message::Feed);
+        let timeline = self.feed.view(&self.tweets).map(Message::Feed);
 
         let mut col: iced::widget::Column<Message> = column!().spacing(8);
 

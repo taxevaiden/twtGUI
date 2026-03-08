@@ -1,7 +1,7 @@
+use crate::components::tweet::{self, TweetComponent};
 use crate::utils::{Tweet, TweetNode};
 use iced::{
     Element, Length, Task,
-    widget::markdown,
     widget::{Column, Id, column, row, scrollable, space},
 };
 
@@ -10,32 +10,48 @@ const INITIAL_LOAD: usize = 25;
 const LOAD_THRESHOLD: f32 = 400.0;
 const TOP_THRESHOLD: f32 = 10.0;
 
+struct BuiltNode {
+    component: TweetComponent,
+    children: Vec<BuiltNode>,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Scrolled(scrollable::Viewport),
     LinkClicked(String),
     RedirectToPage(crate::app::RedirectInfo),
-    TweetMessage(crate::components::tweet::Message),
+    TweetMessage(usize, tweet::Message),
 }
 
 pub struct LazyThreadedFeed {
     scroll_id: Id,
     visible_threads_count: usize,
+    built_threads: Vec<BuiltNode>,
 }
 
 impl LazyThreadedFeed {
-    pub fn new(total_threads: usize) -> Self {
-        Self {
-            scroll_id: Id::unique(),
-            visible_threads_count: INITIAL_LOAD.min(total_threads),
-        }
+    pub fn new(threads: &[TweetNode], tweets: &[Tweet]) -> (Self, Task<Message>) {
+        let (built, task) = build_nodes(threads, tweets);
+        let total = built.len();
+        (
+            Self {
+                scroll_id: Id::unique(),
+                visible_threads_count: INITIAL_LOAD.min(total),
+                built_threads: built,
+            },
+            task,
+        )
     }
 
-    pub fn reset(&mut self, total_threads: usize) {
-        self.visible_threads_count = INITIAL_LOAD.min(total_threads);
+    pub fn reset(&mut self, threads: &[TweetNode], tweets: &[Tweet]) -> Task<Message> {
+        let (built, task) = build_nodes(threads, tweets);
+        self.built_threads = built;
+        self.visible_threads_count = INITIAL_LOAD.min(self.built_threads.len());
+        task
     }
 
-    pub fn update(&mut self, message: Message, total_threads: usize) -> Task<Message> {
+    pub fn update(&mut self, message: Message) -> Task<Message> {
+        let total = self.built_threads.len();
         match message {
             Message::Scrolled(viewport) => {
                 let offset = viewport.absolute_offset().y;
@@ -43,14 +59,13 @@ impl LazyThreadedFeed {
                 let total_height = viewport.content_bounds().height;
 
                 if offset <= TOP_THRESHOLD {
-                    self.visible_threads_count = INITIAL_LOAD.min(total_threads);
+                    self.visible_threads_count = INITIAL_LOAD.min(total);
                 }
 
                 let near_bottom = offset + visible_height >= total_height - LOAD_THRESHOLD;
-
-                if near_bottom && self.visible_threads_count < total_threads {
+                if near_bottom && self.visible_threads_count < total {
                     self.visible_threads_count =
-                        (self.visible_threads_count + BATCH_SIZE).min(total_threads);
+                        (self.visible_threads_count + BATCH_SIZE).min(total);
                 }
 
                 Task::none()
@@ -62,7 +77,7 @@ impl LazyThreadedFeed {
                 if url.contains("twtxt") && url.ends_with(".txt") {
                     Task::done(Message::RedirectToPage(crate::app::RedirectInfo {
                         page: crate::app::Page::View,
-                        content: url.clone(),
+                        content: url,
                     }))
                 } else {
                     if let Err(err) = webbrowser::open(&url) {
@@ -72,78 +87,96 @@ impl LazyThreadedFeed {
                 }
             }
 
-            Message::TweetMessage(msg) => match msg {
-                crate::components::tweet::Message::LinkClicked(url) => {
-                    Task::done(Message::LinkClicked(url))
+            Message::TweetMessage(_, tweet::Message::LinkClicked(url)) => {
+                Task::done(Message::LinkClicked(url))
+            }
+
+            Message::TweetMessage(index, msg) => {
+                if let Some(node) = find_node_mut(&mut self.built_threads, index) {
+                    node.component
+                        .update(msg)
+                        .map(move |m| Message::TweetMessage(index, m))
+                } else {
+                    Task::none()
                 }
-            },
+            }
         }
     }
 
-    pub fn view<'a>(
-        &'a self,
-        threads: &'a [TweetNode],
-        tweets: &'a [Tweet],
-    ) -> Element<'a, Message> {
-        let visible_threads = &threads[..self.visible_threads_count.min(threads.len())];
+    pub fn view<'a>(&'a self, tweets: &'a [Tweet]) -> Element<'a, Message> {
+        let visible =
+            &self.built_threads[..self.visible_threads_count.min(self.built_threads.len())];
 
-        scrollable(build_threaded_feed(visible_threads, tweets, |url| {
-            Message::TweetMessage(crate::components::tweet::Message::LinkClicked(url))
-        }))
-        .id(self.scroll_id.clone())
-        .spacing(8)
-        .on_scroll(Message::Scrolled)
-        .height(Length::Fill)
-        .into()
+        let mut col = column!().spacing(24);
+        for node in visible {
+            col = col.push(render_built_node(node, tweets));
+        }
+
+        scrollable(col)
+            .id(self.scroll_id.clone())
+            .spacing(8)
+            .on_scroll(Message::Scrolled)
+            .height(Length::Fill)
+            .into()
     }
 }
 
-fn build_threaded_feed<'a, M, F>(
-    threads: &'a [TweetNode],
-    tweets: &'a [Tweet],
-    on_link: F,
-) -> Column<'a, M>
-where
-    M: 'a,
-    F: Fn(String) -> M + Copy + 'a,
-{
-    let mut col = column!().spacing(24);
-
-    for thread in threads {
-        col = col.push(render_tweet_node(thread, tweets, on_link, 0));
+fn find_node_mut(nodes: &mut Vec<BuiltNode>, index: usize) -> Option<&mut BuiltNode> {
+    for node in nodes.iter_mut() {
+        if node.component.index == index {
+            return Some(node);
+        }
+        if let Some(found) = find_node_mut(&mut node.children, index) {
+            return Some(found);
+        }
     }
-
-    col
+    None
 }
 
-fn render_tweet_node<'a, M, F>(
-    node: &TweetNode,
-    tweets: &'a [Tweet],
-    on_link: F,
-    depth: usize,
-) -> Column<'a, M>
-where
-    M: 'a,
-    F: Fn(markdown::Uri) -> M + Copy + 'a,
-{
-    let tweet = &tweets[node.index];
-    let tweet_component = crate::components::tweet::TweetComponent::new(tweet);
-    let tweet_view = tweet_component.view().map(move |msg| match msg {
-        crate::components::tweet::Message::LinkClicked(url) => on_link(url),
-    });
+fn build_nodes(threads: &[TweetNode], tweets: &[Tweet]) -> (Vec<BuiltNode>, Task<Message>) {
+    let (nodes, tasks): (Vec<_>, Vec<_>) =
+        threads.iter().map(|node| build_node(node, tweets)).unzip();
 
-    let mut thread_column = column![tweet_view].spacing(8);
+    (nodes, Task::batch(tasks))
+}
+
+fn build_node(node: &TweetNode, tweets: &[Tweet]) -> (BuiltNode, Task<Message>) {
+    let index = node.index;
+    let (component, task) = TweetComponent::new(index, tweets);
+    let task = task.map(move |msg| Message::TweetMessage(index, msg));
 
     let mut sorted_children = node.children.clone();
     sorted_children.sort_by_key(|child| tweets[child.index].timestamp);
 
-    for reply in &sorted_children {
-        let indented_reply = row![
-            space().width(20),
-            render_tweet_node(reply, tweets, on_link, depth + 1)
-        ];
-        thread_column = thread_column.push(indented_reply);
+    let (children, child_tasks): (Vec<_>, Vec<_>) = sorted_children
+        .iter()
+        .map(|child| build_node(child, tweets))
+        .unzip();
+
+    let all_tasks = Task::batch(std::iter::once(task).chain(child_tasks));
+
+    (
+        BuiltNode {
+            component,
+            children,
+        },
+        all_tasks,
+    )
+}
+
+fn render_built_node<'a>(node: &'a BuiltNode, tweets: &'a [Tweet]) -> Column<'a, Message> {
+    let index = node.component.index;
+    let tweet_view = node
+        .component
+        .view(tweets)
+        .map(move |msg| Message::TweetMessage(index, msg));
+
+    let mut thread_col = column![tweet_view].spacing(8);
+
+    for child in &node.children {
+        let indented = row![space().width(20), render_built_node(child, tweets)];
+        thread_col = thread_col.push(indented);
     }
 
-    thread_column
+    thread_col
 }

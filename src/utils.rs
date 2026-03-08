@@ -1,14 +1,6 @@
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Utc};
 use data_encoding::BASE32_NOPAD;
-use iced::{
-    Background, Border, Color, Length, Padding, Pixels, font,
-    widget::{
-        Column, Image, column, container,
-        image::Handle,
-        markdown::{self, Highlight},
-        rich_text, row, space, span,
-    },
-};
+use iced::widget::{image::Handle, markdown};
 
 use regex::Regex;
 
@@ -335,8 +327,6 @@ pub fn parse_tweets(author: &str, url: &str, avatar: Option<Handle>, input: &str
         })
         .collect()
 }
-
-
 
 #[derive(Serialize, Deserialize, Debug)]
 struct CacheMetadata {

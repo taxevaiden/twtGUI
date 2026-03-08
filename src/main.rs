@@ -12,7 +12,7 @@ const ICON_BYTES: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/a
 fn main() -> iced::Result {
     let icon = iced::window::icon::from_file_data(ICON_BYTES, None).unwrap();
 
-    iced::application(TwtxtApp::default, TwtxtApp::update, TwtxtApp::view)
+    iced::application(TwtxtApp::new, TwtxtApp::update, TwtxtApp::view)
         .title("twtGUI")
         .window(iced::window::Settings {
             icon: Some(icon),

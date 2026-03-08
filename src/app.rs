@@ -41,15 +41,23 @@ pub struct RedirectInfo {
 }
 
 impl TwtxtApp {
-    pub fn new() -> Self {
+    pub fn new() -> (Self, Task<Message>) {
         let config = AppConfig::load().expect("Failed to load config");
-        Self {
-            page: Page::Timeline,
-            config: config.clone(),
-            timeline: timeline::TimelinePage::new(),
-            view: view::ViewPage::new(&config),
-            following: following::FollowingPage::default(),
-        }
+        let (timeline, timeline_task) = timeline::TimelinePage::new();
+        let (view, view_task) = view::ViewPage::new(&config);
+        (
+            Self {
+                page: Page::Timeline,
+                config: config.clone(),
+                timeline,
+                view,
+                following: following::FollowingPage::default(),
+            },
+            Task::batch([
+                timeline_task.map(Message::Timeline),
+                view_task.map(Message::View),
+            ]),
+        )
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -121,11 +129,5 @@ impl TwtxtApp {
         };
 
         column![nav, container(content).padding(8)].into()
-    }
-}
-
-impl Default for TwtxtApp {
-    fn default() -> Self {
-        Self::new()
     }
 }

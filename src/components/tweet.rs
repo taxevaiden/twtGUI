@@ -1,26 +1,74 @@
-use crate::utils::Tweet;
+use crate::utils::{Tweet, download_binary};
+use bytes::Bytes;
 use chrono::Local;
 use iced::{
-    widget::{container, row, column, Image, rich_text, span},
-    Element, Length, font, Color, Background, Border, Padding, Pixels,
+    Background, Border, Color, Element, Length, Padding, Pixels, Task, font,
     widget::markdown::{self, Highlight},
+    widget::{Image, column, container, image::Handle, rich_text, row, span},
 };
 
 #[derive(Debug, Clone)]
 pub enum Message {
     LinkClicked(String),
+    ImageLoaded(usize, Result<Bytes, String>), // usize = index into image_urls
 }
 
-pub struct TweetComponent<'a> {
-    pub tweet: &'a Tweet,
+pub struct TweetComponent {
+    pub index: usize,
+    image_urls: Vec<String>,
+    image_handles: Vec<Option<Handle>>, // None = still loading
 }
 
-impl<'a> TweetComponent<'a> {
-    pub fn new(tweet: &'a Tweet) -> Self {
-        Self { tweet }
+impl TweetComponent {
+    pub fn new(index: usize, tweets: &[Tweet]) -> (Self, Task<Message>) {
+        let tweet = &tweets[index];
+        let image_urls = collect_image_urls(&tweet.md_items);
+        let image_handles = vec![None; image_urls.len()];
+
+        let tasks: Vec<Task<Message>> = image_urls
+            .iter()
+            .enumerate()
+            .map(|(i, url)| {
+                let url = url.clone();
+                Task::perform(download_binary(url), move |res| {
+                    Message::ImageLoaded(i, res)
+                })
+            })
+            .collect();
+
+        (
+            Self {
+                index,
+                image_urls,
+                image_handles,
+            },
+            Task::batch(tasks),
+        )
     }
 
-    pub fn view(&self) -> Element<'a, Message> {
+    pub fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::LinkClicked(url) => Task::done(Message::LinkClicked(url)),
+            Message::ImageLoaded(i, Ok(bytes)) => {
+                if i < self.image_handles.len() {
+                    self.image_handles[i] = Some(Handle::from_bytes(bytes));
+                }
+                Task::none()
+            }
+            Message::ImageLoaded(i, Err(e)) => {
+                eprintln!(
+                    "Failed to load image {}: {}",
+                    self.image_urls.get(i).map(String::as_str).unwrap_or("?"),
+                    e
+                );
+                Task::none()
+            }
+        }
+    }
+
+    pub fn view<'a>(&'a self, tweets: &'a [Tweet]) -> Element<'a, Message> {
+        let tweet = &tweets[self.index];
+
         let reg = font::Font::with_name("Iosevka Aile");
         let mut bold = font::Font::with_name("Iosevka Aile");
         bold.weight = font::Weight::Bold;
@@ -29,7 +77,7 @@ impl<'a> TweetComponent<'a> {
         let code_bg = Color::from_rgb(bg.r * 0.75, bg.g * 0.75, bg.b * 0.75);
 
         let content = markdown::view(
-            &self.tweet.md_items,
+            &tweet.md_items,
             markdown::Settings::with_text_size(
                 Pixels(12.0),
                 markdown::Style {
@@ -48,29 +96,40 @@ impl<'a> TweetComponent<'a> {
         )
         .map(Message::LinkClicked);
 
-        let avatar_img = Image::new(self.tweet.avatar.clone())
+        let avatar_img = Image::new(tweet.avatar.clone())
             .width(Length::Fixed(40.0))
             .height(Length::Fixed(40.0))
             .border_radius(20);
 
-        let formatted_time = self.tweet
+        let formatted_time = tweet
             .timestamp
             .with_timezone(&Local)
             .format("%h %-d %Y %-I:%M %p");
 
         let header = rich_text![
-            span(&self.tweet.author).font(bold).link(self.tweet.url.clone()),
+            span(&tweet.author).font(bold).link(tweet.url.clone()),
             span(" - "),
             span(formatted_time.to_string()),
             span(" "),
-            span(self.tweet.hash.clone())
+            span(tweet.hash.clone())
         ]
         .on_link_click(Message::LinkClicked);
+
+        // inline loaded images below the markdown content
+        let mut images_col = column![].spacing(4);
+        for handle in self.image_handles.iter().flatten() {
+            images_col = images_col.push(
+                Image::new(handle.clone())
+                    .width(Length::Fill)
+                    .height(Length::Fixed(500.0))
+                    .border_radius(4),
+            );
+        }
 
         container(
             row![
                 avatar_img,
-                column![header, container(content)]
+                column![header, container(content), images_col]
                     .padding([4.0, 0.0])
                     .spacing(4)
             ]
@@ -79,4 +138,15 @@ impl<'a> TweetComponent<'a> {
         .padding(4)
         .into()
     }
+}
+
+fn collect_image_urls(items: &[markdown::Item]) -> Vec<String> {
+    items
+        .iter()
+        .flat_map(|item| match item {
+            markdown::Item::Image { url, .. } => vec![url.clone()],
+            markdown::Item::Quote(inner) => collect_image_urls(inner),
+            _ => vec![],
+        })
+        .collect()
 }

@@ -45,16 +45,20 @@ pub enum Message {
 }
 
 impl TimelinePage {
-    pub fn new() -> Self {
-        Self {
-            show_composer: false,
-            composer: text_editor::Content::new(),
-            tweets: Vec::new(),
-            thread_tree: Vec::new(),
-            local_avatar: None,
-            pending_downloads: 0,
-            feed: LazyThreadedFeed::new(0),
-        }
+    pub fn new() -> (Self, Task<Message>) {
+        let (feed, feed_task) = LazyThreadedFeed::new(&[], &[]);
+        (
+            Self {
+                show_composer: false,
+                composer: text_editor::Content::new(),
+                tweets: Vec::new(),
+                thread_tree: Vec::new(),
+                local_avatar: None,
+                pending_downloads: 0,
+                feed,
+            },
+            feed_task.map(Message::Feed),
+        )
     }
 
     pub fn update(&mut self, message: Message, config: &AppConfig) -> Task<Message> {
@@ -77,14 +81,13 @@ impl TimelinePage {
 
             Message::PostPressed => {
                 self.show_composer = false;
-                self.send_tweet(config);
-                Task::none()
+                self.send_tweet(config)
             }
 
             Message::Refresh => {
                 self.tweets.clear();
                 self.thread_tree.clear();
-                self.feed.reset(0);
+                let reset_task = self.feed.reset(&[], &[]).map(Message::Feed);
 
                 let mut tasks = Vec::new();
 
@@ -125,62 +128,53 @@ impl TimelinePage {
                     ));
                 }
 
+                tasks.push(reset_task);
+
                 Task::batch(tasks)
             }
 
             Message::FeedLoaded { nick, url, result } => {
-                let mut extra_task = Task::none();
+                let Ok(bundle) = result else {
+                    println!("Error loading feed for {} @ {}", nick, url);
+                    return self.decrement_pending();
+                };
 
-                match result {
-                    Ok(bundle) => {
-                        println!("Feed successfully loaded for {} @ {}", nick, url);
-                        self.tweets.extend(bundle.tweets);
+                println!("Feed successfully loaded for {} @ {}", nick, url);
+                self.tweets.extend(bundle.tweets);
 
-                        // trigger avatar download if available
-                        if let Some(meta) = bundle.metadata {
-                            if let Some(avatar_url) = meta.avatar {
-                                self.pending_downloads += 1;
-                                extra_task =
-                                    Task::perform(download_binary(avatar_url), move |res| {
-                                        Message::AvatarLoaded {
-                                            url: url.clone(),
-                                            result: res,
-                                        }
-                                    });
+                let avatar_task = bundle
+                    .metadata
+                    .and_then(|meta| meta.avatar)
+                    .map(|avatar_url| {
+                        self.pending_downloads += 1;
+                        Task::perform(download_binary(avatar_url), move |res| {
+                            Message::AvatarLoaded {
+                                url: url.clone(),
+                                result: res,
                             }
-                        }
-                    }
-                    Err(e) => {
-                        println!("Error loading feed: {}", e);
-                    }
-                }
+                        })
+                    })
+                    .unwrap_or_else(Task::none);
 
-                let decrement_task = self.decrement_pending();
-
-                Task::batch(vec![decrement_task, extra_task])
+                Task::batch([self.decrement_pending(), avatar_task])
             }
 
             Message::AvatarLoaded { url, result } => {
-                match result {
-                    Ok(bytes) => {
-                        println!("Avatar successfully loaded for {}", url);
-                        let new_handle = Handle::from_bytes(bytes);
+                if let Ok(bytes) = result {
+                    println!("Avatar successfully loaded for {}", url);
+                    let handle = Handle::from_bytes(bytes);
 
-                        // "patch" existing tweets that match this feed URL
-                        for tweet in self.tweets.iter_mut() {
-                            if tweet.url == url {
-                                tweet.avatar = new_handle.clone();
-                                if tweet.url == config.metadata.urls[0] {
-                                    self.local_avatar = Some(new_handle.clone());
-                                }
-                            }
-                        }
+                    if url == config.metadata.urls[0] {
+                        self.local_avatar = Some(handle.clone());
                     }
 
-                    Err(e) => {
-                        println!("Error: {}", e);
+                    for tweet in self.tweets.iter_mut().filter(|t| t.url == url) {
+                        tweet.avatar = handle.clone();
                     }
+                } else if let Err(e) = result {
+                    println!("Error loading avatar for {}: {}", url, e);
                 }
+
                 self.decrement_pending()
             }
 
@@ -188,16 +182,18 @@ impl TimelinePage {
                 Task::done(Message::RedirectToPage(info))
             }
 
-            Message::Feed(msg) => self.feed.update(msg, self.tweets.len()).map(Message::Feed),
+            Message::Feed(msg) => self.feed.update(msg).map(Message::Feed),
 
             Message::RedirectToPage(info) => Task::done(Message::RedirectToPage(info)),
         }
     }
 
-    fn sort_and_refresh(&mut self) {
+    fn sort_and_refresh(&mut self) -> Task<Message> {
         self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        self.thread_tree = build_threads(&self.tweets);
-        self.feed.reset(self.tweets.len());
+        let thread_tree = build_threads(&self.tweets);
+        self.feed
+            .reset(&thread_tree, &self.tweets)
+            .map(Message::Feed)
     }
 
     fn decrement_pending(&mut self) -> Task<Message> {
@@ -206,17 +202,21 @@ impl TimelinePage {
         }
 
         if self.pending_downloads == 0 {
-            self.sort_and_refresh();
+            return self.sort_and_refresh();
         }
         Task::none()
     }
 
-    fn send_tweet(&mut self, config: &AppConfig) {
+    fn send_tweet(&mut self, config: &AppConfig) -> Task<Message> {
         let composer_text = self.composer.text();
 
         if composer_text.trim().is_empty() {
-            return;
+            return Task::none();
         }
+
+        let Some(nick) = config.metadata.nick.clone() else {
+            return Task::none();
+        };
 
         let now = Utc::now();
         let avatar = self
@@ -225,26 +225,20 @@ impl TimelinePage {
             .unwrap_or_else(|| Handle::from_bytes(Bytes::new()));
 
         let (reply_to, display_content) = parse_twt_contents(&composer_text);
-
-        let nick = match &config.metadata.nick {
-            Some(n) => n.clone(),
-            None => return, // no nick set, abort
-        };
-
         let url = config.metadata.urls.first().cloned().unwrap_or_default();
         let timestamp_str = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
-        let items = markdown::parse(&display_content).collect();
+        let written = composer_text.replace("\n", "\\u2028");
 
         let new_tweet = Tweet {
-            hash: compute_twt_hash(&url, &timestamp_str, &composer_text),
+            hash: compute_twt_hash(&url, &timestamp_str, &written),
             reply_to,
             timestamp: now,
-            author: nick.clone(),
+            author: nick,
             url,
             avatar,
-            content: display_content,
-            md_items: items,
+            content: display_content.clone(),
+            md_items: markdown::parse(&display_content).collect(),
         };
 
         if let Ok(mut file) = OpenOptions::new()
@@ -252,15 +246,12 @@ impl TimelinePage {
             .append(true)
             .open(&config.paths.twtxt)
         {
-            let written = composer_text.replace("\n", "\\u2028");
             let _ = writeln!(file, "{}\t{}", timestamp_str, written);
         }
 
         self.tweets.insert(0, new_tweet);
-
-        self.sort_and_refresh();
-
         self.composer = text_editor::Content::new();
+        self.sort_and_refresh()
     }
 
     pub fn view(&self) -> Element<'_, Message> {
@@ -305,10 +296,7 @@ impl TimelinePage {
                 .spacing(8),
             );
         } else {
-            let scroll = self
-                .feed
-                .view(&self.thread_tree, &self.tweets)
-                .map(Message::Feed);
+            let scroll = self.feed.view(&self.tweets).map(Message::Feed);
 
             let refresh_button = button(
                 text("Refresh")
