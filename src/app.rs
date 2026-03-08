@@ -4,8 +4,8 @@
 //! selected page, routing messages between sub-pages and updating the UI.
 
 use iced::{
-    Element, Task,
-    widget::{button, column, container, row},
+    Element, Length, Task,
+    widget::{button, column, container, row, space, text},
 };
 
 use crate::config::AppConfig;
@@ -145,6 +145,8 @@ impl TwtxtApp {
             button("Following")
                 .on_press(Message::SwitchToFollowing)
                 .padding([8, 16]),
+            space().width(Length::Fill),
+            text(env!("BUILD_VERSION"))
         ]
         .spacing(8)
         .padding(8);

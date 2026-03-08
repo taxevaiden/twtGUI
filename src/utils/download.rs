@@ -12,6 +12,8 @@ use std::path::PathBuf;
 
 use directories::ProjectDirs;
 
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("BUILD_VERSION"));
+
 /// Returns the root directory used for caching downloaded content.
 ///
 /// Ensures the directory exists and returns an error string if it cannot be created.
@@ -94,7 +96,6 @@ fn hash_sha256_str(s: &str) -> String {
 /// Returns the cached bytes if the server responds with `304 Not Modified`.
 pub async fn download_binary(url: String) -> Result<Bytes, String> {
     println!("Downloading file from {}", url);
-    static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
     let client = reqwest::Client::builder()
         .user_agent(APP_USER_AGENT)
@@ -172,7 +173,6 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
 /// Uses HTTP `ETag`/`Last-Modified` headers to avoid re-downloading unchanged feeds.
 pub async fn download_twtxt(url: String) -> Result<String, String> {
     println!("Downloading twtxt.txt from {}", url);
-    static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
     let client = reqwest::Client::builder()
         .user_agent(APP_USER_AGENT)

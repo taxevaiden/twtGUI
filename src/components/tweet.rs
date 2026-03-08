@@ -127,8 +127,7 @@ impl TweetComponent {
             images_col = images_col.push(
                 Image::new(handle.clone())
                     .width(Length::Fill)
-                    .height(Length::Fixed(500.0))
-                    .border_radius(4),
+                    .height(Length::Fixed(500.0)),
             );
         }
 
