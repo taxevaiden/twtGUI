@@ -36,7 +36,7 @@ The file is automatically created on first launch if it does not already exist.
 
 There is currently no dedicated settings page in twtGUI, so you must edit `config.toml` manually to change settings such as your nickname or the path to your `twtxt.txt` file.
 
-Feeds you follow can be managed through the **Following** page inside twtGUI.
+However, feeds you follow can be managed through the **Following** page inside twtGUI.
 
 If you need to edit `config.toml`, you can find it in your system’s configuration directory:
 
