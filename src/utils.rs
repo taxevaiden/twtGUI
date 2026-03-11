@@ -1,12 +1,14 @@
 //! Shared utilities used throughout the application.
 //!
-//! This module provides common types and re-exports parsing + download helpers.
+//! This module provides common types and parsing + download helpers.
 
 pub mod download;
 pub mod parsing;
 
 pub use download::{download_and_parse_twtxt, download_binary};
-pub use parsing::{build_threads, compute_twt_hash, parse_metadata, parse_tweets, parse_twt_contents};
+pub use parsing::{
+    build_threads, compute_twt_hash, parse_metadata, parse_tweets, parse_twt_contents,
+};
 
 use chrono::{DateTime, Utc};
 use iced::widget::{image::Handle, markdown};
@@ -129,4 +131,3 @@ pub struct FeedBundle {
 fn default_avatar() -> Handle {
     Handle::from_path("assets/default_avatar.png")
 }
-

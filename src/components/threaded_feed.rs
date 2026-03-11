@@ -8,7 +8,7 @@ use iced::border::Radius;
 use iced::{Border, Theme};
 use iced::{
     Element, Length, Task,
-    widget::{Column, Id, column, container, row, scrollable, space},
+    widget::{Column, Id, button, column, container, row, scrollable, space},
 };
 
 /// How many additional threads to load when reaching the bottom of the scroll.
@@ -26,6 +26,14 @@ struct BuiltNode {
     children: Vec<BuiltNode>,
 }
 
+/// A snapshot pushed onto the navigation stack when drilling into a thread.
+/// Stores the source `TweetNode` tree (which is Clone) rather than `BuiltNode`
+/// (which is not, due to image handles), so we can rebuild on ThreadBack.
+struct StackEntry {
+    source_threads: Vec<TweetNode>,
+    visible_threads_count: usize,
+}
+
 /// Messages emitted by the threaded feed component.
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -33,19 +41,23 @@ pub enum Message {
     Scrolled(scrollable::Viewport),
     /// A link inside a tweet was clicked.
     LinkClicked(String),
+    /// A reply button inside a tweet was clicked.
+    ReplyClicked(usize),
     /// Request to navigate to another page.
     RedirectToPage(crate::app::RedirectInfo),
     /// A message coming from a specific tweet component.
     TweetMessage(usize, tweet::Message),
+    /// Navigate back one level in the thread stack.
+    ThreadBack,
 }
 
 /// Lazy-loading threaded feed view.
-///
-/// This component renders tweet threads incrementally as the user scrolls.
 pub struct LazyThreadedFeed {
     scroll_id: Id,
     visible_threads_count: usize,
+    source_threads: Vec<TweetNode>,
     built_threads: Vec<BuiltNode>,
+    thread_stack: Vec<StackEntry>,
 }
 
 impl LazyThreadedFeed {
@@ -56,7 +68,9 @@ impl LazyThreadedFeed {
             Self {
                 scroll_id: Id::unique(),
                 visible_threads_count: INITIAL_LOAD.min(total),
+                source_threads: threads.to_vec(),
                 built_threads: built,
+                thread_stack: Vec::new(),
             },
             task,
         )
@@ -64,12 +78,14 @@ impl LazyThreadedFeed {
 
     pub fn reset(&mut self, threads: &[TweetNode], tweets: &[Tweet]) -> Task<Message> {
         let (built, task) = build_nodes(threads, tweets);
+        self.source_threads = threads.to_vec();
         self.built_threads = built;
         self.visible_threads_count = INITIAL_LOAD.min(self.built_threads.len());
+        self.thread_stack.clear();
         task
     }
 
-    pub fn update(&mut self, message: Message) -> Task<Message> {
+    pub fn update(&mut self, message: Message, tweets: &[Tweet]) -> Task<Message> {
         let total = self.built_threads.len();
         match message {
             Message::Scrolled(viewport) => {
@@ -90,7 +106,22 @@ impl LazyThreadedFeed {
                 Task::none()
             }
 
+            Message::ThreadBack => {
+                if let Some(entry) = self.thread_stack.pop() {
+                    // Rebuild BuiltNodes fresh from the saved source tree.
+                    let (built, task) = build_nodes(&entry.source_threads, tweets);
+                    self.source_threads = entry.source_threads;
+                    self.built_threads = built;
+                    self.visible_threads_count = entry.visible_threads_count;
+                    task
+                } else {
+                    Task::none()
+                }
+            }
+
             Message::RedirectToPage(info) => Task::done(Message::RedirectToPage(info)),
+
+            Message::ReplyClicked(index) => Task::done(Message::ReplyClicked(index)),
 
             Message::LinkClicked(url) => {
                 if url.contains("twtxt") && url.ends_with(".txt") {
@@ -106,8 +137,16 @@ impl LazyThreadedFeed {
                 }
             }
 
+            Message::TweetMessage(_, tweet::Message::ReplyClicked(index)) => {
+                Task::done(Message::ReplyClicked(index))
+            }
+
             Message::TweetMessage(_, tweet::Message::LinkClicked(url)) => {
                 Task::done(Message::LinkClicked(url))
+            }
+
+            Message::TweetMessage(_, tweet::Message::ThreadClicked(index)) => {
+                self.drill_into_thread(index, tweets)
             }
 
             Message::TweetMessage(index, msg) => {
@@ -119,6 +158,27 @@ impl LazyThreadedFeed {
                     Task::none()
                 }
             }
+        }
+    }
+
+    /// Push the current source tree onto the stack, then rebuild from only the
+    /// subtree rooted at `index`.
+    fn drill_into_thread(&mut self, index: usize, tweets: &[Tweet]) -> Task<Message> {
+        if let Some(focused_source) = find_source_node(&self.source_threads, index) {
+            // Save the current level before replacing anything.
+            self.thread_stack.push(StackEntry {
+                source_threads: std::mem::take(&mut self.source_threads),
+                visible_threads_count: self.visible_threads_count,
+            });
+
+            let focused_sources = vec![focused_source];
+            let (built, task) = build_nodes(&focused_sources, tweets);
+            self.source_threads = focused_sources;
+            self.built_threads = built;
+            self.visible_threads_count = INITIAL_LOAD.min(self.built_threads.len());
+            task
+        } else {
+            Task::none()
         }
     }
 
@@ -138,6 +198,15 @@ impl LazyThreadedFeed {
         }
 
         let mut col = column!().spacing(8);
+
+        if !self.thread_stack.is_empty() {
+            col = col.push(
+                button("← Back")
+                    .on_press(Message::ThreadBack)
+                    .padding([8.0, 16.0]),
+            );
+        }
+
         for node in visible {
             col = col.push(
                 container(render_built_node(node, tweets))
@@ -162,6 +231,19 @@ fn find_node_mut(nodes: &mut Vec<BuiltNode>, index: usize) -> Option<&mut BuiltN
             return Some(node);
         }
         if let Some(found) = find_node_mut(&mut node.children, index) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// Recursively find and clone a TweetNode subtree by tweet index.
+fn find_source_node(nodes: &[TweetNode], index: usize) -> Option<TweetNode> {
+    for node in nodes {
+        if node.index == index {
+            return Some(node.clone());
+        }
+        if let Some(found) = find_source_node(&node.children, index) {
             return Some(found);
         }
     }

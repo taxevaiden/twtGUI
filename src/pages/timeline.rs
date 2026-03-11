@@ -198,7 +198,21 @@ impl TimelinePage {
                 Task::done(Message::RedirectToPage(info))
             }
 
-            Message::Feed(msg) => self.feed.update(msg).map(Message::Feed),
+            Message::Feed(threaded_feed::Message::ReplyClicked(index)) => {
+                let tweet = self.tweets.get(index).cloned().unwrap(); // TODO: Implement default for safe unwrapping
+                let hash = tweet.hash;
+                let author = tweet.author;
+                let source = tweet.url;
+
+                self.show_composer = true;
+                self.composer = text_editor::Content::with_text(
+                    format!("(#{}) @<{} {}>", hash, author, source).as_str(),
+                );
+
+                Task::none()
+            }
+
+            Message::Feed(msg) => self.feed.update(msg, &self.tweets).map(Message::Feed),
 
             Message::RedirectToPage(info) => Task::done(Message::RedirectToPage(info)),
         }
@@ -311,7 +325,8 @@ impl TimelinePage {
                 ]
                 .spacing(8),
             );
-        } else {
+        } else if self.pending_downloads == 0 {
+            // Prevents repeated downloads for markdown images
             let scroll = self.feed.view(&self.tweets).map(Message::Feed);
 
             let refresh_button = button(

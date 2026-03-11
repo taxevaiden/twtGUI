@@ -5,8 +5,20 @@ use bytes::Bytes;
 use chrono::Local;
 use iced::{
     Background, Border, Color, Element, Length, Padding, Pixels, Task, font,
-    widget::markdown::{self, Highlight},
-    widget::{Image, column, container, image::Handle, rich_text, row, span},
+    widget::{
+        Image, button, column, container,
+        image::Handle,
+        markdown::{self, Highlight},
+        rich_text, row, span,
+    },
+};
+
+static REGULAR_FONT: font::Font = font::Font::with_name("Iosevka Aile");
+static BOLD_FONT: font::Font = font::Font {
+    family: font::Family::Name("Iosevka Aile"),
+    weight: font::Weight::Bold,
+    stretch: font::Stretch::Normal,
+    style: font::Style::Normal,
 };
 
 /// Messages used by the tweet component.
@@ -14,6 +26,10 @@ use iced::{
 pub enum Message {
     /// A link inside the tweet markdown was clicked.
     LinkClicked(String),
+    /// The reply button was clicked.
+    ReplyClicked(usize),
+    /// The thread button was clicked.
+    ThreadClicked(usize),
     /// An image inside the tweet finished downloading.
     ImageLoaded(usize, Result<Bytes, String>), // usize = index into image_urls
 }
@@ -55,6 +71,8 @@ impl TweetComponent {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::LinkClicked(url) => Task::done(Message::LinkClicked(url)),
+            Message::ReplyClicked(index) => Task::done(Message::ReplyClicked(index)),
+            Message::ThreadClicked(index) => Task::done(Message::ThreadClicked(index)),
             Message::ImageLoaded(i, Ok(bytes)) => {
                 if i < self.image_handles.len() {
                     self.image_handles[i] = Some(Handle::from_bytes(bytes));
@@ -75,10 +93,6 @@ impl TweetComponent {
     pub fn view<'a>(&'a self, tweets: &'a [Tweet]) -> Element<'a, Message> {
         let tweet = &tweets[self.index];
 
-        let reg = font::Font::with_name("Iosevka Aile");
-        let mut bold = font::Font::with_name("Iosevka Aile");
-        bold.weight = font::Weight::Bold;
-
         let bg = iced::Theme::CatppuccinMocha.palette().background;
         let code_bg = Color::from_rgb(bg.r * 0.75, bg.g * 0.75, bg.b * 0.75);
 
@@ -87,16 +101,16 @@ impl TweetComponent {
             markdown::Settings::with_text_size(
                 Pixels(12.0),
                 markdown::Style {
-                    font: reg,
+                    font: REGULAR_FONT,
                     link_color: Color::from_rgb(0.4, 0.6, 1.0),
-                    inline_code_font: reg,
+                    inline_code_font: REGULAR_FONT,
                     inline_code_color: Color::from_rgb(0.85, 0.85, 0.85),
                     inline_code_highlight: Highlight {
                         background: Background::Color(code_bg),
                         border: Border::default(),
                     },
                     inline_code_padding: Padding::from(2.0),
-                    code_block_font: reg,
+                    code_block_font: REGULAR_FONT,
                 },
             ),
         )
@@ -113,7 +127,7 @@ impl TweetComponent {
             .format("%h %-d %Y %-I:%M %p");
 
         let header = rich_text![
-            span(&tweet.author).font(bold).link(tweet.url.clone()),
+            span(&tweet.author).font(BOLD_FONT).link(tweet.url.clone()),
             span(" - "),
             span(formatted_time.to_string()),
             span(" "),
@@ -131,7 +145,14 @@ impl TweetComponent {
             );
         }
 
-        container(
+        let reply_button = button("Reply")
+            .padding([4.0, 8.0])
+            .on_press(Message::ReplyClicked(self.index));
+        let thread_button = button("Thread")
+            .padding([4.0, 8.0])
+            .on_press(Message::ThreadClicked(self.index));
+
+        column![
             row![
                 avatar_img,
                 column![header, container(content), images_col]
@@ -139,7 +160,9 @@ impl TweetComponent {
                     .spacing(4)
             ]
             .spacing(12),
-        )
+            row![reply_button, thread_button].spacing(8),
+        ]
+        .spacing(8)
         .padding(4)
         .into()
     }

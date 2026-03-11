@@ -167,7 +167,7 @@ impl ViewPage {
                 Task::done(Message::RedirectToPage(info))
             }
 
-            Message::Feed(msg) => self.feed.update(msg).map(Message::Feed),
+            Message::Feed(msg) => self.feed.update(msg, &self.tweets).map(Message::Feed),
 
             Message::RedirectToPage(info) => Task::done(Message::RedirectToPage(info)),
         }
