@@ -13,6 +13,7 @@ pub use parsing::{
 use chrono::{DateTime, Utc};
 use iced::widget::{image::Handle, markdown};
 use serde::{Deserialize, Serialize};
+use std::process::{Child, Command};
 
 /// A parsed tweet from a twtxt feed.
 ///
@@ -130,4 +131,15 @@ pub struct FeedBundle {
 
 fn default_avatar() -> Handle {
     Handle::from_path("assets/default_avatar.png")
+}
+
+/// Runs a shell script (with optional arguments).
+///
+/// On Windows, `.bat` files are run whilst on Unix-like systems, `.sh` files are run.
+pub fn run_script(script: &str, args: &[&str]) -> std::io::Result<Child> {
+    if cfg!(target_os = "windows") {
+        Command::new("cmd").args(["/C", script]).args(args).spawn()
+    } else {
+        Command::new("sh").arg(script).args(args).spawn()
+    }
 }

@@ -145,18 +145,29 @@ url = "https://old.example.com/twtxt.txt"
 
 ### `[paths]`
 
-Contains the path to your `twtxt.txt` file.
+Contains filepaths to three files: the local `twtxt.txt` file, and two scripts to run before and after posting a tweet (in other words, before and after the tweet is written to the local `twtxt.txt` file).
 
 - `twtxt`  
   The filepath to your local `twtxt.txt` file.
   New posts are appended to this file when you publish a tweet.
+
+- `pre_tweet_script`  
+  The filepath to a script to run before posting a tweet.
+
+- `post_tweet_script`  
+  The filepath to a script to run after posting a tweet.
+  
 
 #### Example
 
 ```toml
 [paths]
 twtxt = "C:/path/to/twtxt.txt"
+pre_tweet_script = "C:/path/to/pre_tweet_script.bat"
+post_tweet_script = "C:/path/to/post_tweet_script.bat"
 ```
+
+Script files should be in `.bat` format on Windows, and in `.sh` format on Unix-like systems.
 
 ---
 

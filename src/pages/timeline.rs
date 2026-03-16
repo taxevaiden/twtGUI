@@ -9,11 +9,14 @@ use iced::{
 use std::fs::OpenOptions;
 use std::io::Write;
 
-use crate::components::threaded_feed::{self, LazyThreadedFeed};
 use crate::config::AppConfig;
 use crate::utils::{
     FeedBundle, Tweet, TweetNode, build_threads, compute_twt_hash, download_and_parse_twtxt,
     download_binary, parse_metadata, parse_tweets, parse_twt_contents,
+};
+use crate::{
+    components::threaded_feed::{self, LazyThreadedFeed},
+    utils::run_script,
 };
 
 /// The state for the timeline page.
@@ -238,6 +241,10 @@ impl TimelinePage {
     }
 
     fn send_tweet(&mut self, config: &AppConfig) -> Task<Message> {
+        if let Some(path) = &config.paths.pre_tweet_script {
+            run_script(path, &[]).ok();
+        }
+
         let composer_text = self.composer.text();
 
         if composer_text.trim().is_empty() {
@@ -281,6 +288,11 @@ impl TimelinePage {
 
         self.tweets.insert(0, new_tweet);
         self.composer = text_editor::Content::new();
+
+        if let Some(path) = &config.paths.post_tweet_script {
+            run_script(path, &[]).ok();
+        }
+
         self.sort_and_refresh()
     }
 

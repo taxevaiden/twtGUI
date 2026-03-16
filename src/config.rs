@@ -48,6 +48,12 @@ pub struct AppConfig {
 pub struct AppFilePaths {
     /// Path to the user's local `twtxt.txt` file.
     pub twtxt: String,
+    /// Path to a script file that is run before a tweet is posted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pre_tweet_script: Option<String>,
+    /// Path to a script file that is run after a tweet is posted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_tweet_script: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -67,6 +73,8 @@ impl Default for AppConfig {
             },
             paths: AppFilePaths {
                 twtxt: String::new(),
+                pre_tweet_script: None,
+                post_tweet_script: None,
             },
         }
     }
