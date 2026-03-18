@@ -209,7 +209,7 @@ impl TimelinePage {
 
                 self.show_composer = true;
                 self.composer = text_editor::Content::with_text(
-                    format!("(#{}) @<{} {}>", hash, author, source).as_str(),
+                    format!("(#{}) @<{} {}> ", hash, author, source).as_str(),
                 );
 
                 Task::none()
