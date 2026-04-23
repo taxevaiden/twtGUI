@@ -4,8 +4,6 @@
 //! selected page, routing messages between sub-pages and updating the UI.
 //!
 
-use std::fmt;
-
 use iced::{
     Background, Border, Color, Element, Length, Task, Theme,
     border::Radius,
