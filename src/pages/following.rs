@@ -117,10 +117,22 @@ impl FollowingPage {
                         text_input("URL", &self.edit_url)
                             .on_input(Message::EditUrlChanged)
                             .padding(8),
-                        button("Save").on_press(Message::SaveEdit).padding([8, 16]),
-                        button("Cancel")
+                        row![
+                            button(text("Save").align_x(Alignment::Center).width(Length::Fill))
+                                .on_press(Message::SaveEdit)
+                                .width(Length::Fill)
+                                .padding([8, 16]),
+                            button(
+                                text("Cancel")
+                                    .align_x(Alignment::Center)
+                                    .width(Length::Fill)
+                            )
                             .on_press(Message::CancelEdit)
+                            .width(Length::Fill)
                             .padding([8, 16]),
+                        ]
+                        .width(Length::Fixed(175.0))
+                        .spacing(8)
                     ]
                     .spacing(8)
                     .align_y(Alignment::Center),
@@ -129,13 +141,28 @@ impl FollowingPage {
                 // Normal mode
                 list = list.push(
                     row![
-                        text(format!(" {} → {}", name, url)).width(Length::Fill),
-                        button("Edit")
-                            .on_press(Message::EditPressed(name.clone()))
-                            .padding([8, 16]),
-                        button("Remove")
+                        row![
+                            text(format!("{}", name)).width(Length::Fill),
+                            text(format!("{}", url)).width(Length::Fill)
+                        ]
+                        .spacing(16)
+                        .padding(8),
+                        row![
+                            button(text("Edit").align_x(Alignment::Center).width(Length::Fill))
+                                .on_press(Message::EditPressed(name.clone()))
+                                .width(Length::Fill)
+                                .padding([8, 16]),
+                            button(
+                                text("Remove")
+                                    .align_x(Alignment::Center)
+                                    .width(Length::Fill)
+                            )
                             .on_press(Message::RemovePressed(name.clone()))
+                            .width(Length::Fill)
                             .padding([8, 16]),
+                        ]
+                        .width(Length::Fixed(175.0))
+                        .spacing(8)
                     ]
                     .spacing(8)
                     .align_y(Alignment::Center),

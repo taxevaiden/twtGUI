@@ -6,7 +6,7 @@ use chrono::Local;
 use iced::{
     Background, Border, Color, Element, Length, Padding, Pixels, Task, font,
     widget::{
-        Image, button, column, container,
+        Image, Theme, button, column, container,
         image::Handle,
         markdown::{self, Highlight},
         rich_text, row, span,
@@ -93,8 +93,7 @@ impl TweetComponent {
     pub fn view<'a>(&'a self, tweets: &'a [Tweet]) -> Element<'a, Message> {
         let tweet = &tweets[self.index];
 
-        let bg = iced::Theme::CatppuccinMocha.palette().background;
-        let code_bg = Color::from_rgb(bg.r * 0.75, bg.g * 0.75, bg.b * 0.75);
+        let code_bg = Color::from_rgba(0.0, 0.0, 0.0, 0.08);
 
         let content = markdown::view(
             &tweet.md_items,
@@ -130,8 +129,6 @@ impl TweetComponent {
             span(&tweet.author).font(BOLD_FONT).link(tweet.url.clone()),
             span(" - "),
             span(formatted_time.to_string()),
-            span(" "),
-            span(tweet.hash.clone())
         ]
         .on_link_click(Message::LinkClicked);
 
@@ -145,22 +142,36 @@ impl TweetComponent {
             );
         }
 
+        fn button_style(theme: &Theme, _: button::Status) -> button::Style {
+            button::Style {
+                background: Some(Background::Color(theme.palette().background)),
+                text_color: theme.palette().text,
+                ..Default::default()
+            }
+        }
+
         let reply_button = button("Reply")
+            .style(button_style)
             .padding([4.0, 8.0])
             .on_press(Message::ReplyClicked(self.index));
         let thread_button = button("Thread")
+            .style(button_style)
             .padding([4.0, 8.0])
             .on_press(Message::ThreadClicked(self.index));
 
         column![
             row![
                 avatar_img,
-                column![header, container(content), images_col]
-                    .padding([6.0, 0.0])
-                    .spacing(4)
+                column![
+                    header,
+                    container(content),
+                    images_col,
+                    row![reply_button, thread_button].spacing(8)
+                ]
+                .padding([6.0, 0.0])
+                .spacing(4)
             ]
             .spacing(12),
-            row![reply_button, thread_button].spacing(8),
         ]
         .spacing(8)
         .padding(4)

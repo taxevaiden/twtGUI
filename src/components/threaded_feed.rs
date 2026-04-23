@@ -4,8 +4,6 @@
 
 use crate::components::tweet::{self, TweetComponent};
 use crate::utils::{Tweet, TweetNode};
-use iced::border::Radius;
-use iced::{Border, Theme};
 use iced::{
     Element, Length, Task,
     widget::{Column, Id, button, column, container, row, scrollable, space},
@@ -186,17 +184,6 @@ impl LazyThreadedFeed {
         let visible =
             &self.built_threads[..self.visible_threads_count.min(self.built_threads.len())];
 
-        fn container_style(theme: &Theme) -> container::Style {
-            container::Style {
-                border: Border {
-                    color: theme.palette().text,
-                    width: 1.0,
-                    radius: Radius::new(8.0),
-                },
-                ..Default::default()
-            }
-        }
-
         let mut col = column!().spacing(8);
 
         if !self.thread_stack.is_empty() {
@@ -211,8 +198,7 @@ impl LazyThreadedFeed {
             col = col.push(
                 container(render_built_node(node, tweets))
                     .width(Length::Fill)
-                    .padding(12.0)
-                    .style(container_style),
+                    .padding(12.0),
             );
         }
 
