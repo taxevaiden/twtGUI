@@ -19,6 +19,7 @@ fn main() -> iced::Result {
     iced::application(TwtxtApp::new, TwtxtApp::update, TwtxtApp::view)
         .title("twtGUI")
         .window(iced::window::Settings {
+            min_size: Some(iced::Size::new(800.0, 700.0)),
             icon: Some(icon),
             ..Default::default()
         })

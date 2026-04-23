@@ -185,12 +185,14 @@ impl ViewPage {
                     .and_then(|url| url.host_str().map(str::to_string))
                     .unwrap_or_else(|| "unknown".to_string())
             });
+
         let desc = self
             .metadata
             .as_ref()
             .and_then(|m| m.description.as_ref())
             .cloned()
             .unwrap_or("No description provided.".to_string());
+
         let following = self
             .metadata
             .as_ref()
@@ -203,11 +205,13 @@ impl ViewPage {
                     0
                 }
             });
+
         let links = self
             .metadata
             .as_ref()
             .map(|m| m.links.clone())
             .unwrap_or_default();
+
         let avatar: Element<_> = if let Some(handle) = &self.avatar_bytes {
             image::Image::new(handle.clone())
                 .width(Length::Fixed(128.0))
@@ -222,6 +226,7 @@ impl ViewPage {
                 .center_y(Length::Fixed(128.0))
                 .into()
         };
+
         let timeline = self.feed.view(&self.tweets).map(Message::Feed);
 
         let mut col: iced::widget::Column<Message> = column!().spacing(8);
@@ -238,30 +243,29 @@ impl ViewPage {
             )
         }
 
-        let scroll = column![
+        let info = row![
+            avatar,
             row![
-                avatar,
-                row![
-                    column![
-                        text(nick).size(24),
-                        text(desc),
-                        text(format!("Following: {}", following))
-                    ]
-                    .max_width(350.0)
-                    .spacing(16),
-                    col,
+                column![
+                    text(nick).size(24),
+                    text(desc),
+                    text(format!("Following: {}", following))
                 ]
-                .spacing(64)
-                .align_y(Alignment::Center),
+                .max_width(350.0)
+                .spacing(16),
+                col,
             ]
-            .align_y(Alignment::Center)
-            .spacing(32)
-            .padding(32),
-            timeline
+            .spacing(64)
+            .align_y(Alignment::Center),
         ]
+        .align_y(Alignment::Center)
         .spacing(32)
-        .align_x(Alignment::Center)
-        .height(iced::Length::Fill);
+        .padding(32);
+
+        let scroll = column![info, timeline]
+            .spacing(32)
+            .align_x(Alignment::Center)
+            .height(iced::Length::Fill);
 
         let composer = row![
             text_input("https://example.com/twtxt.txt", &self.composer)

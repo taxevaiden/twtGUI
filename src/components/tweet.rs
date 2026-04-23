@@ -4,12 +4,14 @@ use crate::utils::{Tweet, download_binary};
 use bytes::Bytes;
 use chrono::Local;
 use iced::{
-    Background, Border, Color, Element, Length, Padding, Pixels, Task, font,
+    Background, Border, Color, Element, Length, Padding, Pixels, Task,
+    border::Radius,
+    font,
     widget::{
         Image, Theme, button, column, container,
         image::Handle,
         markdown::{self, Highlight},
-        rich_text, row, span,
+        rich_text, row, space, span,
     },
 };
 
@@ -142,21 +144,35 @@ impl TweetComponent {
             );
         }
 
-        fn button_style(theme: &Theme, _: button::Status) -> button::Style {
+        fn button_style(theme: &Theme, status: button::Status) -> button::Style {
+            let palette = theme.palette();
+            let ext = theme.extended_palette();
+
+            let bg = match status {
+                button::Status::Hovered => ext.background.weaker.color,
+                button::Status::Pressed => ext.background.stronger.color,
+                _ => ext.background.weak.color,
+            };
+
             button::Style {
-                background: Some(Background::Color(theme.palette().background)),
-                text_color: theme.palette().text,
+                background: Some(Background::Color(bg)),
+                text_color: palette.text,
+                border: Border {
+                    radius: Radius::from(4.0),
+                    width: 0.0,
+                    color: iced::Color::TRANSPARENT,
+                },
                 ..Default::default()
             }
         }
 
         let reply_button = button("Reply")
             .style(button_style)
-            .padding([4.0, 8.0])
+            .padding([8.0, 16.0])
             .on_press(Message::ReplyClicked(self.index));
         let thread_button = button("Thread")
             .style(button_style)
-            .padding([4.0, 8.0])
+            .padding([8.0, 16.0])
             .on_press(Message::ThreadClicked(self.index));
 
         column![
@@ -166,6 +182,7 @@ impl TweetComponent {
                     header,
                     container(content),
                     images_col,
+                    space().height(4),
                     row![reply_button, thread_button].spacing(8)
                 ]
                 .padding([6.0, 0.0])

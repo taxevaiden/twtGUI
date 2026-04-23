@@ -113,9 +113,11 @@ impl FollowingPage {
                     row![
                         text_input("Name", &self.edit_name)
                             .on_input(Message::EditNameChanged)
+                            .width(Length::Fill)
                             .padding(8),
                         text_input("URL", &self.edit_url)
                             .on_input(Message::EditUrlChanged)
+                            .width(Length::FillPortion(2))
                             .padding(8),
                         row![
                             button(text("Save").align_x(Alignment::Center).width(Length::Fill))
@@ -143,7 +145,7 @@ impl FollowingPage {
                     row![
                         row![
                             text(format!("{}", name)).width(Length::Fill),
-                            text(format!("{}", url)).width(Length::Fill)
+                            text(format!("{}", url)).width(Length::FillPortion(2))
                         ]
                         .spacing(16)
                         .padding(8),
@@ -173,11 +175,16 @@ impl FollowingPage {
         let add_section = row![
             text_input("Name", &self.new_name)
                 .on_input(Message::NameChanged)
+                .width(Length::Fill)
                 .padding(8),
             text_input("URL", &self.new_url)
                 .on_input(Message::UrlChanged)
+                .width(Length::FillPortion(2))
                 .padding(8),
-            button("Add").on_press(Message::AddPressed).padding([8, 16]),
+            button(text("Add").align_x(Alignment::Center).width(Length::Fill))
+                .on_press(Message::AddPressed)
+                .width(Length::Fixed(175.0))
+                .padding([8, 16]),
         ]
         .spacing(8);
 

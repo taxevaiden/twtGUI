@@ -2,9 +2,13 @@
 //!
 //! This module wires the high-level pages together and manages the current
 //! selected page, routing messages between sub-pages and updating the UI.
+//!
+
+use std::fmt;
 
 use iced::{
-    Element, Length, Task,
+    Background, Border, Color, Element, Length, Task, Theme,
+    border::Radius,
     widget::{button, column, container, row, space, text},
 };
 
@@ -42,7 +46,7 @@ pub enum Message {
 }
 
 /// A simple top-level routing enum for the active page.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum Page {
     /// Show the timeline feed.
     #[default]
@@ -51,6 +55,16 @@ pub enum Page {
     View,
     /// Show the following list.
     Following,
+}
+
+impl fmt::Display for Page {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Page::Timeline => write!(f, "Timeline"),
+            Page::View => write!(f, "View"),
+            Page::Following => write!(f, "Following"),
+        }
+    }
 }
 
 /// Information used when a page wants to redirect the application to another page.
@@ -135,21 +149,74 @@ impl TwtxtApp {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let nav = row![
+        fn button_style(is_active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+            move |theme, status| {
+                let palette = theme.palette();
+                let ext = theme.extended_palette();
+
+                let bg = match status {
+                    button::Status::Hovered => ext.background.weak.color,
+                    button::Status::Pressed => ext.background.strong.color,
+                    _ => ext.background.base.color,
+                };
+
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    text_color: if is_active {
+                        palette.text
+                    } else {
+                        Color {
+                            a: 0.5,
+                            ..palette.text
+                        }
+                    },
+                    border: Border {
+                        radius: Radius::from(8.0),
+                        // Yes, I know this border radius isn't the inner radius plus the padding
+                        // It should be 10 but that looks ugly, and an inner radius of 2
+                        // (which is what every widget uses in the container) is too subtle to notice the inconsistency
+                        width: 1.0,
+                        color: iced::Color::TRANSPARENT,
+                    },
+                    ..Default::default()
+                }
+            }
+        }
+
+        fn container_style(theme: &Theme) -> container::Style {
+            let ext = theme.extended_palette();
+            container::Style {
+                background: Some(Background::Color(ext.background.weak.color)),
+                border: Border {
+                    radius: Radius::from(8.0),
+                    width: 0.0,
+                    color: iced::Color::TRANSPARENT,
+                },
+                ..Default::default()
+            }
+        }
+
+        let nav = column![
             button("Timeline")
                 .on_press(Message::SwitchToTimeline)
-                .padding([8, 16]),
+                .padding([8, 16])
+                .style(button_style(self.page == Page::Timeline))
+                .width(Length::Fill),
             button("View")
                 .on_press(Message::SwitchToView)
-                .padding([8, 16]),
+                .padding([8, 16])
+                .style(button_style(self.page == Page::View))
+                .width(Length::Fill),
             button("Following")
                 .on_press(Message::SwitchToFollowing)
-                .padding([8, 16]),
-            space().width(Length::Fill),
+                .padding([8, 16])
+                .style(button_style(self.page == Page::Following))
+                .width(Length::Fill),
+            space().height(Length::Fill),
             text(env!("BUILD_VERSION"))
         ]
         .spacing(8)
-        .padding(8);
+        .width(Length::Fixed(175.0));
 
         let content = match self.page {
             Page::Timeline => self.timeline.view().map(Message::Timeline),
@@ -157,6 +224,15 @@ impl TwtxtApp {
             Page::Following => self.following.view(&self.config).map(Message::Following),
         };
 
-        column![nav, container(content).padding(8)].into()
+        row![
+            nav,
+            container(content)
+                .height(Length::Fill)
+                .style(container_style)
+                .padding(8)
+        ]
+        .spacing(8)
+        .padding(8)
+        .into()
     }
 }
