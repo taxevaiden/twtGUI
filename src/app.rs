@@ -57,16 +57,6 @@ pub enum Page {
     Following,
 }
 
-impl fmt::Display for Page {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Page::Timeline => write!(f, "Timeline"),
-            Page::View => write!(f, "View"),
-            Page::Following => write!(f, "Following"),
-        }
-    }
-}
-
 /// Information used when a page wants to redirect the application to another page.
 ///
 /// Currently only used by `ViewPage` to indicate which feed should be loaded and then shown.
