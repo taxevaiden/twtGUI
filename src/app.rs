@@ -10,8 +10,11 @@ use iced::{
     widget::{button, column, container, row, space, text},
 };
 
-use crate::config::AppConfig;
-use crate::pages::{following, timeline, view};
+use crate::{
+    components::user_card,
+    pages::{following, timeline, view},
+};
+use crate::{components::user_card::UserCard, config::AppConfig};
 
 /// The application state (model) used by `iced`.
 ///
@@ -22,6 +25,7 @@ pub struct TwtxtApp {
     timeline: timeline::TimelinePage,
     view: view::ViewPage,
     following: following::FollowingPage,
+    user_card: UserCard,
 }
 
 /// The set of messages that can be sent to the top-level application.
@@ -41,6 +45,7 @@ pub enum Message {
     View(view::Message),
     /// A message originating from the following page (forwarded)
     Following(following::Message),
+    UserCard(user_card::Message),
 }
 
 /// A simple top-level routing enum for the active page.
@@ -74,6 +79,15 @@ impl TwtxtApp {
         let config = AppConfig::load().expect("Failed to load config");
         let (timeline, timeline_task) = timeline::TimelinePage::new();
         let (view, view_task) = view::ViewPage::new(&config);
+        let (user_card, user_card_task) = UserCard::new(
+            config
+                .metadata
+                .nick
+                .clone()
+                .unwrap_or("unknown".to_string()),
+            config.metadata.urls[0].clone(),
+            config.metadata.avatar.clone(),
+        );
         (
             Self {
                 page: Page::Timeline,
@@ -81,10 +95,12 @@ impl TwtxtApp {
                 timeline,
                 view,
                 following: following::FollowingPage::default(),
+                user_card,
             },
             Task::batch([
                 timeline_task.map(Message::Timeline),
                 view_task.map(Message::View),
+                user_card_task.map(Message::UserCard),
             ]),
         )
     }
@@ -133,6 +149,16 @@ impl TwtxtApp {
                 self.following.update(msg, &mut self.config);
                 Task::none()
             }
+
+            Message::UserCard(user_card::Message::RedirectToPage(info)) => {
+                self.page = info.page.clone();
+                match self.page {
+                    Page::Timeline => self.view.process_redirect_info(info).map(Message::View),
+                    _ => Task::none(),
+                }
+            }
+
+            Message::UserCard(msg) => self.user_card.update(msg).map(Message::UserCard),
         }
     }
 
@@ -201,7 +227,10 @@ impl TwtxtApp {
                 .style(button_style(self.page == Page::Following))
                 .width(Length::Fill),
             space().height(Length::Fill),
-            text(env!("BUILD_VERSION"))
+            self.user_card.view().map(Message::UserCard),
+            container(text(env!("BUILD_VERSION")))
+                .padding([8, 16])
+                .width(Length::Fill),
         ]
         .spacing(8)
         .width(Length::Fixed(175.0));

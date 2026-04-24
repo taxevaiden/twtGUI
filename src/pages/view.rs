@@ -55,6 +55,7 @@ pub enum Message {
     LinkClicked(String),
     /// Messages forwarded from the threaded feed component.
     Feed(threaded_feed::Message),
+    /// A feed was selected from the following dropdown.
     FollowSelected(String),
 }
 
