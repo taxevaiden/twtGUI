@@ -4,18 +4,36 @@
 
 # twtGUI
 
-<img align="right" width="390" alt="The twtGUI client" src="./assets/client.png" style="border-radius: 8px">
+<img align="right" width="400" alt="The twtGUI client" src="./assets/client.png" style="border-radius: 8px">
 
 A graphical client for twtxt
  
 > [!IMPORTANT]
-> This project is under active development and may introduce breaking changes! Please pull regularly to stay up to date.
+> This project is under active development and may introduce breaking changes! Please update regularly to stay up to date.
 
-## What's supported?
+## Installing
 
-- Sending markdown-formatted tweets
-- Fetching, viewing, and caching feeds
-- Following other feeds
+This client supports every desktop operating system (Windows, macOS, Linux).
+
+For Windows/Linux users, you can grab the latest release [here.](https://github.com/taxevaiden/twtGUI/releases/latest) macOS users will have to build twtGUI themselves. (sorry)
+
+If you encounter any issues, [please open one!](https://github.com/taxevaiden/twtGUI/issues/new)
+
+## Building
+
+You will need the following prerequisites:
+
+- Rust
+- Cargo
+
+You can install both of these through [Rustup.](https://rust-lang.org/learn/get-started/#:~:text=Rustup%3A%20the%20Rust%20installer%20and%20version%20management%20tool)
+
+After installing, simply clone this repository and run `cargo run` (or `cargo run --release` for a release build, which takes longer to compile but is much faster) in the root directory. Cargo should automatically install any dependencies.
+
+## Features
+
+- Tweeting markdown-formatted posts
+- Fetching viewing, and following feeds
 - **Most** of the [twtxt v2 specification](https://twtxt.dev)
   - [Mentions](https://twtxt.dev/#mentions-and-threads:~:text=Mentions%20in%20the,a%20Twtxt%20URI.)
   - [Twt Hash Extension](https://twtxt.dev/exts/twt-hash.html)
@@ -73,29 +91,29 @@ These values are stored locally in `config.toml`, and will be automatically writ
 - `kind`  
   The type of feed.  
   Common values include:
-  - `"bot"` — automated account  
-  - `"rss"` — RSS-to-twtxt feed  
+  - `"bot"` - automated account  
+  - `"rss"` - RSS-to-twtxt feed  
   If not set, the feed is assumed to be human-managed.
 
 - `follows`  
-  A list of feeds you follow (managed inside twtGUI). Each entry contains:
-  - `text` — The display name of the feed.
-  - `url` — The feed’s `twtxt.txt` URL.
+  A list of feeds you follow (managed by twtGUI). Each entry contains:
+  - `text` - The display name of the feed.
+  - `url` - The feed’s `twtxt.txt` URL.
 
 - `following`  
   The number of feeds this feed follows.  
-  This is automatically set by the client based on the number of entries in `follows`.
+  This is automatically set by twtGUI based on the number of entries in `follows`.
 
 - `links`  
   Additional profile links. Each entry contains:
-  - `text` — A label (for example, `"GitHub"`)
-  - `url` — The associated URL  
+  - `text` - A label (for example, `"GitHub"`)
+  - `url` - The associated URL  
   These may be shown on a user’s profile page.
 
 - `prev`  
   A list of archived feeds. Each entry contains:
-  - `text` — The hash of the last tweet in the feed.
-  - `url` — The feed’s `twtxt.txt` URL.
+  - `text` - The hash of the last tweet in the feed.
+  - `url` - The feed’s `twtxt.txt` URL.
 
 - `refresh`  
   A suggested refresh interval (in seconds) for how often clients should fetch the feed.
@@ -170,19 +188,6 @@ post_tweet_script = "C:/path/to/post_tweet_script.bat"
 Script files should be in `.bat` format on Windows, and in `.sh` format on Unix-like systems.
 
 ---
-
-## Running
-
-You will need the following prerequisites:
-
-- Rust
-- Cargo
-
-You can install both of these through a tool called [Rustup](https://rust-lang.org/learn/get-started/#:~:text=Rustup%3A%20the%20Rust%20installer%20and%20version%20management%20tool).
-
-After installing, simply clone this repository and run `cargo run` (or `cargo run --release` for a release build which takes longer to compile but is much faster) in the root directory. Cargo should automatically install any dependencies.
-
-If you encounter any issues, [please open one!](https://github.com/taxevaiden/twtGUI/issues/new)
 
 ## License
 

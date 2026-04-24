@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "README.md"
 
 permissions:
   contents: write
@@ -99,4 +101,4 @@ jobs:
           files: |
             twtGUI-linux-x86_64
             twtGUI-windows-x86_64.exe
-          generate_release_notes: true
+          generate_release_notes: false

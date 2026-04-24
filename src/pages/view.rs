@@ -8,7 +8,7 @@ use iced::{
     widget::{
         button, column, container,
         image::{self, Handle},
-        rich_text, row, span, text, text_input,
+        pick_list, rich_text, row, span, text, text_input,
     },
 };
 
@@ -29,6 +29,7 @@ pub struct ViewPage {
     metadata: Option<Metadata>,
     pending_downloads: usize,
     feed: LazyThreadedFeed,
+    selected_follow: Option<String>,
 }
 
 /// Messages used to update the view page.
@@ -54,6 +55,7 @@ pub enum Message {
     LinkClicked(String),
     /// Messages forwarded from the threaded feed component.
     Feed(threaded_feed::Message),
+    FollowSelected(String),
 }
 
 impl ViewPage {
@@ -68,6 +70,7 @@ impl ViewPage {
                 metadata: None,
                 pending_downloads: 0,
                 feed,
+                selected_follow: None,
             },
             feed_task.map(Message::Feed),
         )
@@ -170,6 +173,15 @@ impl ViewPage {
             Message::Feed(msg) => self.feed.update(msg, &self.tweets).map(Message::Feed),
 
             Message::RedirectToPage(info) => Task::done(Message::RedirectToPage(info)),
+
+            Message::FollowSelected(url) => {
+                self.selected_follow = Some(url.clone());
+
+                Task::done(Message::RedirectToPage(crate::app::RedirectInfo {
+                    page: crate::app::Page::View,
+                    content: url,
+                }))
+            }
         }
     }
 
@@ -192,6 +204,12 @@ impl ViewPage {
             .and_then(|m| m.description.as_ref())
             .cloned()
             .unwrap_or("No description provided.".to_string());
+
+        let follows: Vec<String> = self
+            .metadata
+            .as_ref()
+            .map(|m| m.follows.iter().map(|f| f.url.clone()).collect())
+            .unwrap_or_default();
 
         let following = self
             .metadata
@@ -249,7 +267,13 @@ impl ViewPage {
                 column![
                     text(nick).size(24),
                     text(desc),
-                    text(format!("Following: {}", following))
+                    text(format!("Following: {}", following)),
+                    pick_list(
+                        follows,
+                        self.selected_follow.clone(),
+                        Message::FollowSelected,
+                    )
+                    .placeholder("View a followed feed...")
                 ]
                 .max_width(350.0)
                 .spacing(16),
@@ -292,6 +316,7 @@ impl ViewPage {
         match info.page {
             crate::app::Page::View => {
                 self.composer = info.content;
+                self.selected_follow = None;
                 Task::done(Message::ViewPressed)
             }
             _ => Task::none(),
