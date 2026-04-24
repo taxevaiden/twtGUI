@@ -71,7 +71,7 @@ The configuration file is divided into two main sections:
 
 ### `[metadata]`
 
-Contains information about you and your twtxt identity, along with optional metadata defined by the twtxt Metadata Extension.
+Contains information about you and your twtxt identity.
 
 These values are stored locally in `config.toml`, and will be automatically written to your `twtxt.txt` file when saved.
 
@@ -163,7 +163,7 @@ url = "https://old.example.com/twtxt.txt"
 
 ### `[paths]`
 
-Contains filepaths to three files: the local `twtxt.txt` file, and two scripts to run before and after posting a tweet (in other words, before and after the tweet is written to the local `twtxt.txt` file).
+Contains the filepaths to three files: the local `twtxt.txt` file, and two scripts to run before and after posting a tweet (in other words, before and after the tweet is written to the local `twtxt.txt` file).
 
 - `twtxt`  
   The filepath to your local `twtxt.txt` file.
