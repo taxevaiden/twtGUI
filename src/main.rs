@@ -55,6 +55,13 @@ fn main() -> iced::Result {
             ))
             .as_slice(),
         )
+        .font(
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/fonts/iosevka-mono.ttf"
+            ))
+            .as_slice(),
+        )
         .default_font(font::Font::with_name("Iosevka Aile"))
         .theme(iced::Theme::CatppuccinMocha)
         .run()

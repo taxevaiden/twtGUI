@@ -7,6 +7,7 @@
 use iced::{
     Background, Border, Color, Element, Length, Task, Theme,
     border::Radius,
+    font,
     widget::{button, column, container, row, space, text},
 };
 
@@ -74,6 +75,19 @@ pub struct RedirectInfo {
     pub content: String,
 }
 
+/// The regular font used throughout the application.
+pub static REGULAR_FONT: font::Font = font::Font::with_name("Iosevka Aile");
+/// The bold font used throughout the application.
+pub static BOLD_FONT: font::Font = font::Font {
+    family: font::Family::Name("Iosevka Aile"),
+    weight: font::Weight::Bold,
+    stretch: font::Stretch::Normal,
+    style: font::Style::Normal,
+};
+/// The monospace font used throughout the application.
+/// Mainly used in code blocks.
+pub static MONOSPACE_FONT: font::Font = font::Font::with_name("Iosevka");
+
 impl TwtxtApp {
     pub fn new() -> (Self, Task<Message>) {
         let config = AppConfig::load().expect("Failed to load config");
@@ -85,12 +99,7 @@ impl TwtxtApp {
                 .nick
                 .clone()
                 .unwrap_or("unknown".to_string()),
-            config
-                .metadata
-                .urls
-                .first()
-                .unwrap_or(&"https://example.com/twtxt.txt".to_string())
-                .clone(),
+            config.metadata.urls.first().cloned(),
             config.metadata.avatar.clone(),
         );
         (

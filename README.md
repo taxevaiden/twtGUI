@@ -193,4 +193,4 @@ Script files should be in `.bat` format on Windows, and in `.sh` format on Unix-
 
 twtGUI is licensed under the MIT License. See the [LICENSE](https://github.com/taxevaiden/twtGUI/blob/main/LICENSE) file for details.
 
-twtGUI uses the Iosevka Aile font, which is licensed under the SIL Open Font License. See the [Iosevka](https://github.com/be5invis/Iosevka) repository for details.
+twtGUI uses the Iosevka font familiy, which is licensed under the SIL Open Font License. See the [Iosevka](https://github.com/be5invis/Iosevka) repository for details.

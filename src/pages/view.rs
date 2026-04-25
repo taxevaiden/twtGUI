@@ -4,11 +4,14 @@
 
 use bytes::Bytes;
 use iced::{
-    Alignment, Color, Element, Length, Task,
+    Alignment, Background, Border, Color, Element, Length, Task, Theme,
+    border::Radius,
     widget::{
         button, column, container,
         image::{self, Handle},
-        pick_list, rich_text, row, span, text, text_input,
+        pick_list, rich_text, row,
+        row::Row,
+        space, span, text, text_input,
     },
 };
 
@@ -30,6 +33,7 @@ pub struct ViewPage {
     pending_downloads: usize,
     feed: LazyThreadedFeed,
     selected_follow: Option<String>,
+    info_expanded: bool,
 }
 
 /// Messages used to update the view page.
@@ -57,6 +61,10 @@ pub enum Message {
     Feed(threaded_feed::Message),
     /// A feed was selected from the following dropdown.
     FollowSelected(String),
+    /// The user pressed the "Expand" button.
+    ExpandPressed,
+    /// The user pressed the "Collapse" button.
+    CollapsePressed,
 }
 
 impl ViewPage {
@@ -72,6 +80,7 @@ impl ViewPage {
                 pending_downloads: 0,
                 feed,
                 selected_follow: None,
+                info_expanded: true,
             },
             feed_task.map(Message::Feed),
         )
@@ -183,10 +192,42 @@ impl ViewPage {
                     content: url,
                 }))
             }
+
+            Message::ExpandPressed => {
+                self.info_expanded = true;
+                Task::none()
+            }
+
+            Message::CollapsePressed => {
+                self.info_expanded = false;
+                Task::none()
+            }
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
+        fn button_style(theme: &Theme, status: button::Status) -> button::Style {
+            let palette = theme.palette();
+            let ext = theme.extended_palette();
+
+            let bg = match status {
+                button::Status::Hovered => ext.background.weaker.color,
+                button::Status::Pressed => ext.background.stronger.color,
+                _ => ext.background.weak.color,
+            };
+
+            button::Style {
+                background: Some(Background::Color(bg)),
+                text_color: palette.text,
+                border: Border {
+                    radius: Radius::from(4.0),
+                    width: 0.0,
+                    color: iced::Color::TRANSPARENT,
+                },
+                ..Default::default()
+            }
+        }
+
         let nick = self
             .metadata
             .as_ref()
@@ -231,27 +272,64 @@ impl ViewPage {
             .map(|m| m.links.clone())
             .unwrap_or_default();
 
-        let avatar: Element<_> = if let Some(handle) = &self.avatar_bytes {
+        let avatar_expanded: Element<_> = if let Some(handle) = &self.avatar_bytes {
             image::Image::new(handle.clone())
-                .width(Length::Fixed(128.0))
-                .height(Length::Fixed(128.0))
-                .border_radius(64)
+                .width(Length::Fixed(56.0))
+                .height(Length::Fixed(56.0))
+                .border_radius(28)
                 .into()
         } else {
-            container("No Avatar")
-                .width(Length::Fixed(128.0))
-                .height(Length::Fixed(128.0))
-                .center_x(Length::Fixed(128.0))
-                .center_y(Length::Fixed(128.0))
+            container(text("?").size(20))
+                .width(Length::Fixed(56.0))
+                .height(Length::Fixed(56.0))
+                .center_x(Length::Fixed(56.0))
+                .center_y(Length::Fixed(56.0))
+                .style(|theme: &Theme| {
+                    let ext = theme.extended_palette();
+                    container::Style {
+                        background: Some(Background::Color(ext.background.strong.color)),
+                        border: Border {
+                            radius: Radius::from(28.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }
+                })
+                .into()
+        };
+
+        let avatar_collapsed: Element<_> = if let Some(handle) = &self.avatar_bytes {
+            image::Image::new(handle.clone())
+                .width(Length::Fixed(32.0))
+                .height(Length::Fixed(32.0))
+                .border_radius(16)
+                .into()
+        } else {
+            container(text("?").size(13))
+                .width(Length::Fixed(32.0))
+                .height(Length::Fixed(32.0))
+                .center_x(Length::Fixed(32.0))
+                .center_y(Length::Fixed(32.0))
+                .style(|theme: &Theme| {
+                    let ext = theme.extended_palette();
+                    container::Style {
+                        background: Some(Background::Color(ext.background.strong.color)),
+                        border: Border {
+                            radius: Radius::from(16.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }
+                })
                 .into()
         };
 
         let timeline = self.feed.view(&self.tweets).map(Message::Feed);
 
-        let mut col: iced::widget::Column<Message> = column!().spacing(8);
-
+        // Link badges row
+        let mut links_row: Row<Message> = row!().spacing(4);
         for link in links {
-            col = col.push(
+            links_row = links_row.push(
                 rich_text![
                     span(link.text.clone())
                         .link(link.url.clone())
@@ -259,38 +337,78 @@ impl ViewPage {
                         .color(Color::from_rgb(0.4, 0.6, 1.0))
                 ]
                 .on_link_click(Message::LinkClicked),
-            )
+            );
         }
 
-        let info = row![
-            avatar,
-            row![
+        let info: Element<_> = if self.info_expanded {
+            container(
                 column![
-                    text(nick).size(24),
-                    text(desc),
-                    text(format!("Following: {}", following)),
-                    pick_list(
-                        follows,
-                        self.selected_follow.clone(),
-                        Message::FollowSelected,
-                    )
-                    .placeholder("View a followed feed...")
+                    row![
+                        avatar_expanded,
+                        column![
+                            column![
+                                text(nick.clone()).font(crate::app::BOLD_FONT),
+                                text(desc).color(Color::from_rgba(1.0, 1.0, 1.0, 0.55)),
+                                links_row.wrap(),
+                            ]
+                            .spacing(8),
+                            row![
+                                text(format!("{} following", following))
+                                    .color(Color::from_rgba(1.0, 1.0, 1.0, 0.55)),
+                                pick_list(
+                                    follows,
+                                    self.selected_follow.clone(),
+                                    Message::FollowSelected,
+                                )
+                                .placeholder("View a followed feed...")
+                                .width(Length::Fill),
+                            ]
+                            .align_y(Alignment::Center)
+                            .spacing(8),
+                        ]
+                        .padding([8, 0])
+                        .spacing(18)
+                        .width(Length::Fill),
+                    ]
+                    .spacing(16)
+                    .align_y(Alignment::Start),
+                    row![
+                        space().width(Length::Fill),
+                        button("Collapse")
+                            .on_press(Message::CollapsePressed)
+                            .padding([8, 16])
+                            .style(button_style),
+                    ],
                 ]
-                .max_width(350.0)
-                .spacing(16),
-                col,
-            ]
-            .spacing(64)
-            .align_y(Alignment::Center),
-        ]
-        .align_y(Alignment::Center)
-        .spacing(32)
-        .padding(32);
+                .spacing(12),
+            )
+            .padding([20, 24])
+            .into()
+        } else {
+            container(
+                row![
+                    avatar_collapsed,
+                    text(nick).font(crate::app::BOLD_FONT),
+                    space().width(Length::Fill),
+                    text(format!("{} following", following))
+                        .color(Color::from_rgba(1.0, 1.0, 1.0, 0.4)),
+                    button("Expand")
+                        .on_press(Message::ExpandPressed)
+                        .padding([8, 16])
+                        .style(button_style),
+                ]
+                .spacing(10)
+                .align_y(Alignment::Center),
+            )
+            .padding([10, 20])
+            .into()
+        };
 
         let scroll = column![info, timeline]
-            .spacing(32)
+            .spacing(if self.info_expanded { 16 } else { 8 })
             .align_x(Alignment::Center)
-            .height(iced::Length::Fill);
+            .width(Length::Fill)
+            .height(Length::Fill);
 
         let composer = row![
             text_input("https://example.com/twtxt.txt", &self.composer)

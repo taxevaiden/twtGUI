@@ -6,21 +6,12 @@ use chrono::Local;
 use iced::{
     Background, Border, Color, ContentFit, Element, Length, Padding, Pixels, Task,
     border::Radius,
-    font,
     widget::{
         Image, Theme, button, column, container,
         image::Handle,
         markdown::{self, Highlight},
         rich_text, row, space, span,
     },
-};
-
-static REGULAR_FONT: font::Font = font::Font::with_name("Iosevka Aile");
-static BOLD_FONT: font::Font = font::Font {
-    family: font::Family::Name("Iosevka Aile"),
-    weight: font::Weight::Bold,
-    stretch: font::Stretch::Normal,
-    style: font::Style::Normal,
 };
 
 /// Messages used by the tweet component.
@@ -112,16 +103,16 @@ impl TweetComponent {
             markdown::Settings::with_text_size(
                 Pixels(12.0),
                 markdown::Style {
-                    font: REGULAR_FONT,
+                    font: crate::app::REGULAR_FONT,
                     link_color: Color::from_rgb(0.4, 0.6, 1.0),
-                    inline_code_font: REGULAR_FONT,
+                    inline_code_font: crate::app::MONOSPACE_FONT,
                     inline_code_color: Color::from_rgb(0.85, 0.85, 0.85),
                     inline_code_highlight: Highlight {
                         background: Background::Color(code_bg),
                         border: Border::default(),
                     },
                     inline_code_padding: Padding::from(2.0),
-                    code_block_font: REGULAR_FONT,
+                    code_block_font: crate::app::MONOSPACE_FONT,
                 },
             ),
         )
@@ -138,9 +129,11 @@ impl TweetComponent {
             .format("%h %-d %Y %-I:%M %p");
 
         let header = rich_text![
-            span(&tweet.author).font(BOLD_FONT).link(tweet.url.clone()),
-            span(" - "),
-            span(formatted_time.to_string()),
+            span(&tweet.author)
+                .font(crate::app::BOLD_FONT)
+                .link(tweet.url.clone()),
+            span(" "),
+            span(formatted_time.to_string()).color(Color::from_rgba(1.0, 1.0, 1.0, 0.55)),
         ]
         .on_link_click(Message::LinkClicked);
 

@@ -6,7 +6,7 @@ use bytes::Bytes;
 use iced::{
     Background, Border, Element, Length, Task, Theme,
     border::Radius,
-    widget::{button, image::Handle, row, text},
+    widget::{button, container, image::Handle, row, text},
 };
 
 #[derive(Debug, Clone)]
@@ -22,14 +22,14 @@ pub enum Message {
 /// Card displaying a user's profile, with their avatar and name.
 pub struct UserCard {
     user: String,
-    user_url: String,
+    user_url: Option<String>,
     avatar: Option<Handle>,
 }
 
 impl UserCard {
     pub fn new(
         user: String,
-        user_url: String,
+        user_url: Option<String>,
         avatar_url: Option<String>,
     ) -> (Self, Task<Message>) {
         let task = if let Some(url) = avatar_url {
@@ -66,7 +66,7 @@ impl UserCard {
             Message::UserClicked() => {
                 Task::done(Message::RedirectToPage(crate::app::RedirectInfo {
                     page: crate::app::Page::View,
-                    content: self.user_url.clone(),
+                    content: self.user_url.clone().unwrap(),
                 }))
             }
 
@@ -84,7 +84,7 @@ impl UserCard {
             None => iced::widget::space().width(32).into(),
         };
 
-        let username = text(self.user.clone());
+        let username = text(self.user.clone()).font(crate::app::BOLD_FONT);
 
         fn button_style(theme: &Theme, status: button::Status) -> button::Style {
             let palette = theme.palette();
@@ -108,15 +108,26 @@ impl UserCard {
             }
         }
 
-        button(
-            row![avatar, username]
-                .spacing(8)
-                .align_y(iced::Alignment::Center),
-        )
-        .on_press(Message::UserClicked())
-        .style(button_style)
-        .padding([8, 16])
-        .width(Length::Fill)
-        .into()
+        if self.user_url.is_none() {
+            container(
+                row![avatar, username]
+                    .spacing(8)
+                    .align_y(iced::Alignment::Center),
+            )
+            .padding([8, 16])
+            .width(Length::Fill)
+            .into()
+        } else {
+            button(
+                row![avatar, username]
+                    .spacing(8)
+                    .align_y(iced::Alignment::Center),
+            )
+            .on_press(Message::UserClicked())
+            .style(button_style)
+            .padding([8, 16])
+            .width(Length::Fill)
+            .into()
+        }
     }
 }
