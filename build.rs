@@ -14,4 +14,10 @@ fn main() {
     println!("cargo:rustc-env=BUILD_VERSION={}-{}", ver, hash.trim());
     println!("cargo:rustc-env=BUILD_DATE={}", date);
     println!("cargo:rustc-env=GIT_HASH={}", hash.trim());
+
+    if std::env::var_os("CARGO_CFG_WINDOWS").is_some() {
+        let mut res = winres::WindowsResource::new();
+        res.set_icon("assets/icon.ico");
+        res.compile().unwrap();
+    }
 }

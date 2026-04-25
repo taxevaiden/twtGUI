@@ -3,7 +3,7 @@
 //! This module focuses on parsing the raw twtxt text into structured objects.
 
 use crate::utils::{Link, Metadata, Tweet, TweetNode};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use data_encoding::BASE32_NOPAD;
 use iced::widget::{image::Handle, markdown};
 use regex::Regex;
@@ -31,14 +31,27 @@ pub fn compute_twt_hash(feed_url: &str, timestamp: &str, text: &str) -> String {
 
     let encoded = BASE32_NOPAD.encode(&result).to_lowercase();
 
-    encoded
-        .chars()
-        .rev()
-        .take(7)
-        .collect::<String>()
-        .chars()
-        .rev()
-        .collect()
+    // https://twtxt.dev/exts/twt-hash-v2.html
+    // Tweets after 2026-07-01T00:00:00Z use the v2 hash format.
+    // Before this date, the v1 hash format is used.
+    let ts = timestamp.parse::<DateTime<Utc>>().unwrap();
+    let epoch = Utc.with_ymd_and_hms(2026, 7, 1, 0, 0, 0).unwrap();
+
+    let use_v2_hash = ts >= epoch;
+
+    // v2 uses the first 12 letters, whereas v1 uses the last 7 letters.
+    if use_v2_hash {
+        encoded.chars().take(12).collect::<String>()
+    } else {
+        encoded
+            .chars()
+            .rev()
+            .take(7)
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect()
+    }
 }
 
 /// Parses a single tweet line, extracting a reply hash and converting mentions to markdown.

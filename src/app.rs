@@ -85,7 +85,12 @@ impl TwtxtApp {
                 .nick
                 .clone()
                 .unwrap_or("unknown".to_string()),
-            config.metadata.urls[0].clone(),
+            config
+                .metadata
+                .urls
+                .first()
+                .unwrap_or(&"https://example.com/twtxt.txt".to_string())
+                .clone(),
             config.metadata.avatar.clone(),
         );
         (
@@ -153,7 +158,7 @@ impl TwtxtApp {
             Message::UserCard(user_card::Message::RedirectToPage(info)) => {
                 self.page = info.page.clone();
                 match self.page {
-                    Page::Timeline => self.view.process_redirect_info(info).map(Message::View),
+                    Page::View => self.view.process_redirect_info(info).map(Message::View),
                     _ => Task::none(),
                 }
             }

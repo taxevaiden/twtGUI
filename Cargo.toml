@@ -25,3 +25,4 @@ toml = "1.0.3"
 
 [build-dependencies]
 chrono = "0.4"
+winres = "0.1.12"
