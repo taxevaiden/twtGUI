@@ -4,7 +4,7 @@ use crate::utils::{Tweet, download_binary};
 use bytes::Bytes;
 use chrono::Local;
 use iced::{
-    Background, Border, Color, Element, Length, Padding, Pixels, Task,
+    Background, Border, Color, ContentFit, Element, Length, Padding, Pixels, Task,
     border::Radius,
     font,
     widget::{
@@ -40,7 +40,7 @@ pub enum Message {
 pub struct TweetComponent {
     pub index: usize,
     image_urls: Vec<String>,
-    image_handles: Vec<Option<Handle>>, // None = still loading
+    image_handles: Vec<Option<(Handle, u32, u32)>>,
 }
 
 impl TweetComponent {
@@ -77,7 +77,17 @@ impl TweetComponent {
             Message::ThreadClicked(index) => Task::done(Message::ThreadClicked(index)),
             Message::ImageLoaded(i, Ok(bytes)) => {
                 if i < self.image_handles.len() {
-                    self.image_handles[i] = Some(Handle::from_bytes(bytes));
+                    let dims = image::load_from_memory(&bytes).ok().map(|img| {
+                        let (w, h) = (img.width(), img.height());
+                        (w, h)
+                    });
+
+                    if let Some((w, h)) = dims {
+                        self.image_handles[i] = Some((Handle::from_bytes(bytes), w, h));
+                    } else {
+                        // fallback!
+                        self.image_handles[i] = Some((Handle::from_bytes(bytes), 0, 0));
+                    }
                 }
                 Task::none()
             }
@@ -134,14 +144,27 @@ impl TweetComponent {
         ]
         .on_link_click(Message::LinkClicked);
 
-        // inline loaded images below the markdown content
+        const MAX_WIDTH: f32 = 500.0;
+        const MAX_HEIGHT: f32 = 400.0;
+
         let mut images_col = column![].spacing(4);
-        for handle in self.image_handles.iter().flatten() {
-            images_col = images_col.push(
+        for entry in self.image_handles.iter().flatten() {
+            let (handle, img_w, img_h) = entry;
+            let image = if *img_w > 0 && *img_h > 0 {
+                let aspect = *img_h as f32 / *img_w as f32;
+                let render_h = (MAX_WIDTH * aspect).min(MAX_HEIGHT);
+                Image::new(handle.clone())
+                    .width(Length::Fixed(MAX_WIDTH))
+                    .height(Length::Fixed(render_h))
+                    .content_fit(ContentFit::Contain)
+            } else {
+                // fallback!
                 Image::new(handle.clone())
                     .width(Length::Fill)
-                    .height(Length::Fixed(500.0)),
-            );
+                    .height(Length::Shrink)
+                    .content_fit(ContentFit::Contain)
+            };
+            images_col = images_col.push(image);
         }
 
         fn button_style(theme: &Theme, status: button::Status) -> button::Style {

@@ -8,6 +8,7 @@ debug = true
 
 [dependencies]
 iced = { version = "0.14", features = ["wgpu", "image", "markdown", "highlighter", "tokio"] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 reqwest = "0.13.2"
