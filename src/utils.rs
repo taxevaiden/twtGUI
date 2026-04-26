@@ -1,14 +1,18 @@
 //! Shared utilities used throughout the application.
 //!
-//! This module provides common types and parsing + download helpers.
+//! This module provides common types and helpers.
 
 pub mod download;
+pub mod hash;
 pub mod parsing;
+pub mod paths;
+pub mod styling;
+pub mod threading;
 
 pub use download::{download_and_parse_twtxt, download_binary};
-pub use parsing::{
-    build_threads, compute_twt_hash, parse_metadata, parse_tweets, parse_twt_contents,
-};
+pub use hash::compute_twt_hash;
+pub use parsing::{parse_metadata, parse_tweets, parse_twt_contents};
+pub use threading::build_threads;
 
 use chrono::{DateTime, Utc};
 use iced::widget::{image::Handle, markdown};

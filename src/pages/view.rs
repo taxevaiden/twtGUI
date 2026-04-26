@@ -14,9 +14,11 @@ use iced::{
         space, span, text, text_input,
     },
 };
+use tracing::{error, info};
 
 use crate::utils::{
     FeedBundle, Metadata, Tweet, TweetNode, download_and_parse_twtxt, download_binary,
+    styling::sec_button_style,
 };
 use crate::{components::threaded_feed, config::AppConfig};
 use crate::{components::threaded_feed::LazyThreadedFeed, utils::build_threads};
@@ -116,11 +118,11 @@ impl ViewPage {
                 self.pending_downloads -= 1;
 
                 let Ok(bundle) = result else {
-                    println!("Error loading feed for {}", url);
+                    error!("Error loading feed for {}", url);
                     return Task::none();
                 };
 
-                println!("Feed successfully loaded for {}", url);
+                info!("Feed successfully loaded for {}", url);
                 self.metadata = bundle.metadata.clone();
                 self.tweets = bundle.tweets;
                 self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
@@ -149,7 +151,7 @@ impl ViewPage {
 
             Message::AvatarLoaded { url, result } => {
                 if let Ok(bytes) = result {
-                    println!("Avatar successfully loaded for {}", url);
+                    info!("Avatar successfully loaded for {}", url);
                     let handle = Handle::from_bytes(bytes);
                     self.avatar_bytes = Some(handle.clone());
 
@@ -157,7 +159,7 @@ impl ViewPage {
                         tweet.avatar = handle.clone();
                     }
                 } else if let Err(e) = result {
-                    println!("Error loading avatar for {}: {}", url, e);
+                    error!("Error loading avatar for {}: {}", url, e);
                 }
 
                 self.pending_downloads -= 1;
@@ -206,28 +208,6 @@ impl ViewPage {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        fn button_style(theme: &Theme, status: button::Status) -> button::Style {
-            let palette = theme.palette();
-            let ext = theme.extended_palette();
-
-            let bg = match status {
-                button::Status::Hovered => ext.background.weaker.color,
-                button::Status::Pressed => ext.background.stronger.color,
-                _ => ext.background.weak.color,
-            };
-
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: palette.text,
-                border: Border {
-                    radius: Radius::from(4.0),
-                    width: 0.0,
-                    color: iced::Color::TRANSPARENT,
-                },
-                ..Default::default()
-            }
-        }
-
         let nick = self
             .metadata
             .as_ref()
@@ -377,7 +357,7 @@ impl ViewPage {
                         button("Collapse")
                             .on_press(Message::CollapsePressed)
                             .padding([8, 16])
-                            .style(button_style),
+                            .style(sec_button_style),
                     ],
                 ]
                 .spacing(12),
@@ -395,7 +375,7 @@ impl ViewPage {
                     button("Expand")
                         .on_press(Message::ExpandPressed)
                         .padding([8, 16])
-                        .style(button_style),
+                        .style(sec_button_style),
                 ]
                 .spacing(10)
                 .align_y(Alignment::Center),

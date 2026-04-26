@@ -10,23 +10,11 @@ use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use directories::ProjectDirs;
+use tracing::{debug, info};
+
+use crate::utils::paths::cache_root;
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("BUILD_VERSION"));
-
-/// Returns the root directory used for caching downloaded content.
-///
-/// Ensures the directory exists and returns an error string if it cannot be created.
-fn cache_root() -> Result<PathBuf, String> {
-    let proj = ProjectDirs::from("com", "taxevaiden", "twtGUI")
-        .ok_or("Could not determine project directories")?;
-
-    let dir = proj.cache_dir();
-
-    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-
-    Ok(dir.to_path_buf())
-}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct CacheMetadata {
@@ -95,7 +83,7 @@ fn hash_sha256_str(s: &str) -> String {
 ///
 /// Returns the cached bytes if the server responds with `304 Not Modified`.
 pub async fn download_binary(url: String) -> Result<Bytes, String> {
-    println!("Downloading file from {}", url);
+    debug!("Downloading file from {}", url);
 
     let client = reqwest::Client::builder()
         .user_agent(APP_USER_AGENT)
@@ -122,7 +110,7 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
 
     // 304 Not Modified
     if response.status() == reqwest::StatusCode::NOT_MODIFIED {
-        println!(
+        info!(
             "304 Not Modified: {}\n\tData: {}\n\tMetadata: {}",
             url,
             data_path.display(),
@@ -153,7 +141,7 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
     })
     .map_err(|e| e.to_string())?;
 
-    println!(
+    info!(
         "200 OK: {}\n\tWriting {} bytes to data {}\n\tWriting {} bytes to metadata {}",
         url,
         data.len(),
@@ -172,7 +160,7 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
 ///
 /// Uses HTTP `ETag`/`Last-Modified` headers to avoid re-downloading unchanged feeds.
 pub async fn download_twtxt(url: String) -> Result<String, String> {
-    println!("Downloading twtxt.txt from {}", url);
+    debug!("Downloading twtxt.txt from {}", url);
 
     let client = reqwest::Client::builder()
         .user_agent(APP_USER_AGENT)
@@ -199,7 +187,7 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
 
     // 304 Not Modified
     if response.status() == reqwest::StatusCode::NOT_MODIFIED {
-        println!("304 Not Modified: {}\n\t{}", url, cache_path.display());
+        info!("304 Not Modified: {}\n\t{}", url, cache_path.display());
         return cached_data
             .map(|e| e.content)
             .ok_or_else(|| "Server returned 304 but no local file found".to_string());
@@ -229,7 +217,7 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
     };
 
     let serialized = serde_json::to_string(&new_entry).map_err(|e| e.to_string())?;
-    println!(
+    info!(
         "200 OK: {}\n\tWriting {} bytes to {}",
         url,
         serialized.len(),

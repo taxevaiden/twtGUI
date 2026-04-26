@@ -8,6 +8,7 @@ use iced::{
 };
 use std::fs::OpenOptions;
 use std::io::Write;
+use tracing::{error, info};
 
 use crate::config::AppConfig;
 use crate::utils::{
@@ -154,11 +155,11 @@ impl TimelinePage {
 
             Message::FeedLoaded { nick, url, result } => {
                 let Ok(bundle) = result else {
-                    println!("Error loading feed for {} @ {}", nick, url);
+                    error!("Error loading feed for {} @ {}", nick, url);
                     return self.decrement_pending();
                 };
 
-                println!("Feed successfully loaded for {} @ {}", nick, url);
+                info!("Feed successfully loaded for {} @ {}", nick, url);
                 self.tweets.extend(bundle.tweets);
 
                 let avatar_task = bundle
@@ -180,7 +181,7 @@ impl TimelinePage {
 
             Message::AvatarLoaded { url, result } => {
                 if let Ok(bytes) = result {
-                    println!("Avatar successfully loaded for {}", url);
+                    info!("Avatar successfully loaded for {}", url);
                     let handle = Handle::from_bytes(bytes);
 
                     if url == config.metadata.urls[0] {
@@ -191,7 +192,7 @@ impl TimelinePage {
                         tweet.avatar = handle.clone();
                     }
                 } else if let Err(e) = result {
-                    println!("Error loading avatar for {}: {}", url, e);
+                    error!("Error loading avatar for {}: {}", url, e);
                 }
 
                 self.decrement_pending()
@@ -338,7 +339,6 @@ impl TimelinePage {
                 .spacing(8),
             );
         } else if self.pending_downloads == 0 {
-            // Prevents repeated downloads for markdown images
             let scroll = self.feed.view(&self.tweets).map(Message::Feed);
 
             let refresh_button = button(

@@ -8,6 +8,7 @@ use iced::{
     Element, Length, Task,
     widget::{Column, Id, button, column, container, row, scrollable, space},
 };
+use tracing::error;
 
 /// How many additional threads to load when reaching the bottom of the scroll.
 const BATCH_SIZE: usize = 10; // Threads can be large, so smaller batches are safer
@@ -129,7 +130,7 @@ impl LazyThreadedFeed {
                     }))
                 } else {
                     if let Err(err) = webbrowser::open(&url) {
-                        eprintln!("Error opening URL: {}", err);
+                        error!("Error opening URL: {}", err);
                     }
                     Task::none()
                 }

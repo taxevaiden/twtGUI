@@ -1,18 +1,18 @@
 //! A tweet renderer component, responsible for displaying a single tweet line.
 
-use crate::utils::{Tweet, download_binary};
+use crate::utils::{Tweet, download_binary, styling::sec_button_style};
 use bytes::Bytes;
 use chrono::Local;
 use iced::{
     Background, Border, Color, ContentFit, Element, Length, Padding, Pixels, Task,
-    border::Radius,
     widget::{
-        Image, Theme, button, column, container,
+        Image, button, column, container,
         image::Handle,
         markdown::{self, Highlight},
         rich_text, row, space, span,
     },
 };
+use tracing::error;
 
 /// Messages used by the tweet component.
 #[derive(Debug, Clone)]
@@ -83,7 +83,7 @@ impl TweetComponent {
                 Task::none()
             }
             Message::ImageLoaded(i, Err(e)) => {
-                eprintln!(
+                error!(
                     "Failed to load image {}: {}",
                     self.image_urls.get(i).map(String::as_str).unwrap_or("?"),
                     e
@@ -160,34 +160,12 @@ impl TweetComponent {
             images_col = images_col.push(image);
         }
 
-        fn button_style(theme: &Theme, status: button::Status) -> button::Style {
-            let palette = theme.palette();
-            let ext = theme.extended_palette();
-
-            let bg = match status {
-                button::Status::Hovered => ext.background.weaker.color,
-                button::Status::Pressed => ext.background.stronger.color,
-                _ => ext.background.weak.color,
-            };
-
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: palette.text,
-                border: Border {
-                    radius: Radius::from(4.0),
-                    width: 0.0,
-                    color: iced::Color::TRANSPARENT,
-                },
-                ..Default::default()
-            }
-        }
-
         let reply_button = button("Reply")
-            .style(button_style)
+            .style(sec_button_style)
             .padding([8.0, 16.0])
             .on_press(Message::ReplyClicked(self.index));
         let thread_button = button("Thread")
-            .style(button_style)
+            .style(sec_button_style)
             .padding([8.0, 16.0])
             .on_press(Message::ThreadClicked(self.index));
 

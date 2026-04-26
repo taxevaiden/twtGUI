@@ -5,15 +5,22 @@
 //!
 
 use iced::{
-    Background, Border, Color, Element, Length, Task, Theme,
+    Background, Border, Element, Length, Task, Theme,
     border::Radius,
     font,
-    widget::{button, column, container, row, space, text},
+    widget::{
+        Id, button, column, container, operation::snap_to, row, scrollable,
+        scrollable::RelativeOffset, space, text,
+    },
 };
 
+static LOG_SCROLL_ID: std::sync::LazyLock<Id> = std::sync::LazyLock::new(Id::unique);
+
+use crate::logging::LogBuffer;
 use crate::{
     components::user_card,
     pages::{following, timeline, view},
+    utils::styling::tab_style,
 };
 use crate::{components::user_card::UserCard, config::AppConfig};
 
@@ -27,6 +34,8 @@ pub struct TwtxtApp {
     view: view::ViewPage,
     following: following::FollowingPage,
     user_card: UserCard,
+    log_buffer: LogBuffer,
+    log_lines: Vec<String>,
 }
 
 /// The set of messages that can be sent to the top-level application.
@@ -40,12 +49,16 @@ pub enum Message {
     SwitchToView,
     /// Switch to the following page
     SwitchToFollowing,
+    /// Switch to the logs page
+    SwitchToLogs,
+    Tick,
     /// A message originating from the timeline page (forwarded)
     Timeline(timeline::Message),
     /// A message originating from the view page (forwarded)
     View(view::Message),
     /// A message originating from the following page (forwarded)
     Following(following::Message),
+    /// A message originating from the user card (forwarded)
     UserCard(user_card::Message),
 }
 
@@ -59,6 +72,8 @@ pub enum Page {
     View,
     /// Show the following list.
     Following,
+    /// Show the logs.
+    Logs,
 }
 
 /// Information used when a page wants to redirect the application to another page.
@@ -89,7 +104,7 @@ pub static BOLD_FONT: font::Font = font::Font {
 pub static MONOSPACE_FONT: font::Font = font::Font::with_name("Iosevka");
 
 impl TwtxtApp {
-    pub fn new() -> (Self, Task<Message>) {
+    pub fn new(log_buffer: LogBuffer) -> (Self, Task<Message>) {
         let config = AppConfig::load().expect("Failed to load config");
         let (timeline, timeline_task) = timeline::TimelinePage::new();
         let (view, view_task) = view::ViewPage::new(&config);
@@ -110,6 +125,8 @@ impl TwtxtApp {
                 view,
                 following: following::FollowingPage::default(),
                 user_card,
+                log_buffer,
+                log_lines: Vec::new(),
             },
             Task::batch([
                 timeline_task.map(Message::Timeline),
@@ -133,6 +150,27 @@ impl TwtxtApp {
 
             Message::SwitchToFollowing => {
                 self.page = Page::Following;
+                Task::none()
+            }
+
+            Message::SwitchToLogs => {
+                self.page = Page::Logs;
+                Task::none()
+            }
+
+            Message::Tick => {
+                let prev_len = self.log_lines.len();
+                if let Ok(mut buf) = self.log_buffer.lock() {
+                    self.log_lines.extend(buf.drain(..));
+                }
+                if self.log_lines.len() > 500 {
+                    let excess = self.log_lines.len() - 500;
+                    self.log_lines.drain(..excess);
+                }
+
+                if self.log_lines.len() != prev_len {
+                    return snap_to(LOG_SCROLL_ID.clone(), RelativeOffset::END);
+                }
                 Task::none()
             }
 
@@ -176,41 +214,30 @@ impl TwtxtApp {
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
-        fn button_style(is_active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
-            move |theme, status| {
-                let palette = theme.palette();
-                let ext = theme.extended_palette();
-
-                let bg = match status {
-                    button::Status::Hovered => ext.background.weak.color,
-                    button::Status::Pressed => ext.background.strong.color,
-                    _ => ext.background.base.color,
-                };
-
-                button::Style {
-                    background: Some(Background::Color(bg)),
-                    text_color: if is_active {
-                        palette.text
-                    } else {
-                        Color {
-                            a: 0.5,
-                            ..palette.text
-                        }
-                    },
-                    border: Border {
-                        radius: Radius::from(8.0),
-                        // Yes, I know this border radius isn't the inner radius plus the padding
-                        // It should be 10 but that looks ugly, and an inner radius of 2
-                        // (which is what every widget uses in the container) is too subtle to notice the inconsistency
-                        width: 1.0,
-                        color: iced::Color::TRANSPARENT,
-                    },
-                    ..Default::default()
-                }
-            }
+    pub fn subscription(&self) -> iced::Subscription<Message> {
+        if self.page == Page::Logs {
+            iced::time::every(std::time::Duration::from_millis(200)).map(|_| Message::Tick)
+        } else {
+            iced::Subscription::none()
         }
+    }
 
+    fn view_logs(&self) -> Element<'_, Message> {
+        let lines = self
+            .log_lines
+            .iter()
+            .fold(column![].spacing(2), |col, line| {
+                col.push(text(line).font(MONOSPACE_FONT))
+            });
+
+        scrollable(lines)
+            .id(LOG_SCROLL_ID.clone())
+            .height(Length::Fill)
+            .width(Length::Fill)
+            .into()
+    }
+
+    pub fn view(&self) -> Element<'_, Message> {
         fn container_style(theme: &Theme) -> container::Style {
             let ext = theme.extended_palette();
             container::Style {
@@ -228,17 +255,22 @@ impl TwtxtApp {
             button("Timeline")
                 .on_press(Message::SwitchToTimeline)
                 .padding([8, 16])
-                .style(button_style(self.page == Page::Timeline))
+                .style(tab_style(self.page == Page::Timeline))
                 .width(Length::Fill),
             button("View")
                 .on_press(Message::SwitchToView)
                 .padding([8, 16])
-                .style(button_style(self.page == Page::View))
+                .style(tab_style(self.page == Page::View))
                 .width(Length::Fill),
             button("Following")
                 .on_press(Message::SwitchToFollowing)
                 .padding([8, 16])
-                .style(button_style(self.page == Page::Following))
+                .style(tab_style(self.page == Page::Following))
+                .width(Length::Fill),
+            button("Logs")
+                .on_press(Message::SwitchToLogs)
+                .padding([8, 16])
+                .style(tab_style(self.page == Page::Logs))
                 .width(Length::Fill),
             space().height(Length::Fill),
             self.user_card.view().map(Message::UserCard),
@@ -253,6 +285,9 @@ impl TwtxtApp {
             Page::Timeline => self.timeline.view().map(Message::Timeline),
             Page::View => self.view.view().map(Message::View),
             Page::Following => self.following.view(&self.config).map(Message::Following),
+            Page::Logs => self.view_logs(), // We could make Logs its own separate page struct,
+                                            // But it makes more sense to implement this way
+                                            // Not like it owns any data and has an update fn we just give data to it
         };
 
         row![

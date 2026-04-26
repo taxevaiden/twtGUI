@@ -1,13 +1,13 @@
 //! A card displaying a user's profile, with their avatar and name.
 //! Displayed on the sidebar.
 
-use crate::utils::download_binary;
+use crate::utils::{download_binary, styling::prim_button_style};
 use bytes::Bytes;
 use iced::{
-    Background, Border, Element, Length, Task, Theme,
-    border::Radius,
+    Element, Length, Task,
     widget::{button, container, image::Handle, row, text},
 };
+use tracing::error;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -59,7 +59,7 @@ impl UserCard {
             }
 
             Message::AvatarLoaded(url, Err(e)) => {
-                eprintln!("Failed to load image {}: {}", url, e);
+                error!("Failed to load image {}: {}", url, e);
                 Task::none()
             }
 
@@ -86,28 +86,6 @@ impl UserCard {
 
         let username = text(self.user.clone()).font(crate::app::BOLD_FONT);
 
-        fn button_style(theme: &Theme, status: button::Status) -> button::Style {
-            let palette = theme.palette();
-            let ext = theme.extended_palette();
-
-            let bg = match status {
-                button::Status::Hovered => ext.background.weak.color,
-                button::Status::Pressed => ext.background.strong.color,
-                _ => ext.background.base.color,
-            };
-
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: palette.text,
-                border: Border {
-                    radius: Radius::from(8.0),
-                    width: 1.0,
-                    color: iced::Color::TRANSPARENT,
-                },
-                ..Default::default()
-            }
-        }
-
         if self.user_url.is_none() {
             container(
                 row![avatar, username]
@@ -124,7 +102,7 @@ impl UserCard {
                     .align_y(iced::Alignment::Center),
             )
             .on_press(Message::UserClicked())
-            .style(button_style)
+            .style(prim_button_style)
             .padding([8, 16])
             .width(Length::Fill)
             .into()
