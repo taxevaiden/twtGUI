@@ -9,7 +9,7 @@
 A graphical client for twtxt
  
 > [!IMPORTANT]
-> This project is under active development and may introduce breaking changes! Please update regularly to stay up to date.
+> This project is under active development and may introduce breaking changes! Please check for updates regularly.
 
 ## Installing
 
