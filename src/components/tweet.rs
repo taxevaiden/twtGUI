@@ -121,7 +121,8 @@ impl TweetComponent {
         let avatar_img = Image::new(tweet.avatar.clone())
             .width(Length::Fixed(48.0))
             .height(Length::Fixed(48.0))
-            .border_radius(24);
+            .border_radius(24)
+            .filter_method(iced::widget::image::FilterMethod::Linear);
 
         let formatted_time = tweet
             .timestamp
@@ -150,12 +151,14 @@ impl TweetComponent {
                     .width(Length::Fixed(MAX_WIDTH))
                     .height(Length::Fixed(render_h))
                     .content_fit(ContentFit::Contain)
+                    .filter_method(iced::widget::image::FilterMethod::Linear)
             } else {
                 // fallback!
                 Image::new(handle.clone())
                     .width(Length::Fill)
                     .height(Length::Shrink)
                     .content_fit(ContentFit::Contain)
+                    .filter_method(iced::widget::image::FilterMethod::Linear)
             };
             images_col = images_col.push(image);
         }

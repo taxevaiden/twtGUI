@@ -257,6 +257,7 @@ impl ViewPage {
                 .width(Length::Fixed(56.0))
                 .height(Length::Fixed(56.0))
                 .border_radius(28)
+                .filter_method(iced::widget::image::FilterMethod::Linear)
                 .into()
         } else {
             container(text("?").size(20))
@@ -283,6 +284,7 @@ impl ViewPage {
                 .width(Length::Fixed(32.0))
                 .height(Length::Fixed(32.0))
                 .border_radius(16)
+                .filter_method(iced::widget::image::FilterMethod::Linear)
                 .into()
         } else {
             container(text("?").size(13))

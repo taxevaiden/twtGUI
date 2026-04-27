@@ -49,6 +49,15 @@ fn main() -> iced::Result {
     .window(iced::window::Settings {
         min_size: Some(iced::Size::new(800.0, 700.0)),
         icon: Some(icon),
+        platform_specific: iced::window::settings::PlatformSpecific {
+            #[cfg(target_os = "macos")]
+            title_hidden: true,
+            #[cfg(target_os = "macos")]
+            titlebar_transparent: true,
+            #[cfg(target_os = "macos")]
+            fullsize_content_view: true,
+            ..Default::default()
+        },
         ..Default::default()
     })
     .settings(Settings {

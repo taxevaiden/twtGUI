@@ -80,6 +80,7 @@ impl UserCard {
                 .width(32)
                 .height(32)
                 .border_radius(16)
+                .filter_method(iced::widget::image::FilterMethod::Linear)
                 .into(),
             None => iced::widget::space().width(32).into(),
         };

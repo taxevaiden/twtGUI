@@ -290,15 +290,20 @@ impl TwtxtApp {
                                             // Not like it owns any data and has an update fn we just give data to it
         };
 
-        row![
-            nav,
-            container(content)
-                .height(Length::Fill)
-                .style(container_style)
-                .padding(8)
+        column![
+            #[cfg(target_os = "macos")]
+            space().height(16),
+            row![
+                nav,
+                container(content)
+                    .height(Length::Fill)
+                    .style(container_style)
+                    .padding(8)
+            ]
+            .spacing(8)
+            .padding(8)
         ]
         .spacing(8)
-        .padding(8)
         .into()
     }
 }
