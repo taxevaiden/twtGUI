@@ -74,7 +74,8 @@ jobs:
             libxkbcommon-dev \
             libwayland-dev \
             libvulkan-dev \
-            pkg-config
+            pkg-config \
+            libfuse2
 
       - name: Build
         run: cargo build --release --target x86_64-unknown-linux-gnu
@@ -112,8 +113,8 @@ jobs:
           name: twtGUI-x86_64.AppImage
           path: twtGUI-x86_64.AppImage
 
-  build-macos:
-    name: Build (macOS)
+  build-macos-intel:
+    name: Build (macOS Intel)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -123,7 +124,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-apple-darwin,aarch64-apple-darwin
+          targets: x86_64-apple-darwin
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -132,21 +133,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: macos-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: macos-cargo-
+          key: macos-intel-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: macos-intel-cargo-
 
-      - name: Build (x86_64)
+      - name: Build
         run: cargo build --release --target x86_64-apple-darwin
-
-      - name: Build (aarch64)
-        run: cargo build --release --target aarch64-apple-darwin
-
-      - name: Create universal binary
-        run: |
-          lipo -create \
-            target/x86_64-apple-darwin/release/twtgui \
-            target/aarch64-apple-darwin/release/twtgui \
-            -output twtGUI-macos-universal
 
       - name: Compute version
         id: version
@@ -160,23 +151,20 @@ jobs:
         run: |
           mkdir -p twtGUI.app/Contents/MacOS
           mkdir -p twtGUI.app/Contents/Resources
-
-          cp twtGUI-macos-universal twtGUI.app/Contents/MacOS/twtgui
+          cp target/x86_64-apple-darwin/release/twtgui twtGUI.app/Contents/MacOS/twtgui
           chmod +x twtGUI.app/Contents/MacOS/twtgui
-
           mkdir -p AppIcon.iconset
-          sips -z 16 16     assets/icon.svg --out AppIcon.iconset/icon_16x16.png
-          sips -z 32 32     assets/icon.svg --out AppIcon.iconset/icon_16x16@2x.png
-          sips -z 32 32     assets/icon.svg --out AppIcon.iconset/icon_32x32.png
-          sips -z 64 64     assets/icon.svg --out AppIcon.iconset/icon_32x32@2x.png
-          sips -z 128 128   assets/icon.svg --out AppIcon.iconset/icon_128x128.png
-          sips -z 256 256   assets/icon.svg --out AppIcon.iconset/icon_128x128@2x.png
-          sips -z 256 256   assets/icon.svg --out AppIcon.iconset/icon_256x256.png
-          sips -z 512 512   assets/icon.svg --out AppIcon.iconset/icon_256x256@2x.png
-          sips -z 512 512   assets/icon.svg --out AppIcon.iconset/icon_512x512.png
-          sips -z 1024 1024 assets/icon.svg --out AppIcon.iconset/icon_512x512@2x.png
+          sips -z 16 16     assets/icon_1024.png --out AppIcon.iconset/icon_16x16.png
+          sips -z 32 32     assets/icon_1024.png --out AppIcon.iconset/icon_16x16@2x.png
+          sips -z 32 32     assets/icon_1024.png --out AppIcon.iconset/icon_32x32.png
+          sips -z 64 64     assets/icon_1024.png --out AppIcon.iconset/icon_32x32@2x.png
+          sips -z 128 128   assets/icon_1024.png --out AppIcon.iconset/icon_128x128.png
+          sips -z 256 256   assets/icon_1024.png --out AppIcon.iconset/icon_128x128@2x.png
+          sips -z 256 256   assets/icon_1024.png --out AppIcon.iconset/icon_256x256.png
+          sips -z 512 512   assets/icon_1024.png --out AppIcon.iconset/icon_256x256@2x.png
+          sips -z 512 512   assets/icon_1024.png --out AppIcon.iconset/icon_512x512.png
+          sips -z 1024 1024 assets/icon_1024.png --out AppIcon.iconset/icon_512x512@2x.png
           iconutil -c icns AppIcon.iconset -o twtGUI.app/Contents/Resources/AppIcon.icns
-
           cat > twtGUI.app/Contents/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -201,18 +189,101 @@ jobs:
           </dict>
           </plist>
           EOF
-
-          zip -r twtGUI-macos.zip twtGUI.app
+          zip -r twtGUI-macos-intel.zip twtGUI.app
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: twtGUI-macos.zip
-          path: twtGUI-macos.zip
+          name: twtGUI-macos-intel.zip
+          path: twtGUI-macos-intel.zip
+
+  build-macos-arm:
+    name: Build (macOS Apple Silicon)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-arm-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: macos-arm-cargo-
+
+      - name: Build
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Compute version
+        id: version
+        run: |
+          HASH=$(git rev-parse --short HEAD)
+          DATE=$(date -u +"%Y.%-m%d")
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "full=${DATE}-${HASH}" >> $GITHUB_OUTPUT
+
+      - name: Bundle .app
+        run: |
+          mkdir -p twtGUI.app/Contents/MacOS
+          mkdir -p twtGUI.app/Contents/Resources
+          cp target/aarch64-apple-darwin/release/twtgui twtGUI.app/Contents/MacOS/twtgui
+          chmod +x twtGUI.app/Contents/MacOS/twtgui
+          mkdir -p AppIcon.iconset
+          sips -z 16 16     assets/icon_1024.png --out AppIcon.iconset/icon_16x16.png
+          sips -z 32 32     assets/icon_1024.png --out AppIcon.iconset/icon_16x16@2x.png
+          sips -z 32 32     assets/icon_1024.png --out AppIcon.iconset/icon_32x32.png
+          sips -z 64 64     assets/icon_1024.png --out AppIcon.iconset/icon_32x32@2x.png
+          sips -z 128 128   assets/icon_1024.png --out AppIcon.iconset/icon_128x128.png
+          sips -z 256 256   assets/icon_1024.png --out AppIcon.iconset/icon_128x128@2x.png
+          sips -z 256 256   assets/icon_1024.png --out AppIcon.iconset/icon_256x256.png
+          sips -z 512 512   assets/icon_1024.png --out AppIcon.iconset/icon_256x256@2x.png
+          sips -z 512 512   assets/icon_1024.png --out AppIcon.iconset/icon_512x512.png
+          sips -z 1024 1024 assets/icon_1024.png --out AppIcon.iconset/icon_512x512@2x.png
+          iconutil -c icns AppIcon.iconset -o twtGUI.app/Contents/Resources/AppIcon.icns
+          cat > twtGUI.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>
+            <string>twtGUI</string>
+            <key>CFBundleDisplayName</key>
+            <string>twtGUI</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.taxevaiden.twtGUI</string>
+            <key>CFBundleVersion</key>
+            <string>${{ steps.version.outputs.date }}</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${{ steps.version.outputs.full }}</string>
+            <key>CFBundleExecutable</key>
+            <string>twtgui</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+          zip -r twtGUI-macos-arm.zip twtGUI.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: twtGUI-macos-arm.zip
+          path: twtGUI-macos-arm.zip
 
   release:
     name: Create Release
-    needs: [build-windows, build-appimage, build-macos]
+    needs: [build-windows, build-appimage, build-macos-intel, build-macos-arm]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -239,5 +310,6 @@ jobs:
           files: |
             twtGUI-windows-x86_64.exe
             twtGUI-x86_64.AppImage
-            twtGUI-macos.zip
+            twtGUI-macos-intel.zip
+            twtGUI-macos-arm.zip
           generate_release_notes: false
