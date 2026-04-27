@@ -1,0 +1,127 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in twtGUI
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out as much as you can.
+
+  - type: input
+    id: version
+    attributes:
+      label: twtGUI Version
+      description: Found in the release tag (e.g. `2026.426-bb53f52`), or in the bottom left corner of the window.
+      placeholder: "2026.426-bb53f52"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS Version
+      placeholder: "e.g. Windows 11, Ubuntu 24.04, macOS 15.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: twtxt-spec
+    attributes:
+      label: twtxt Spec Version
+      description: |
+        Does your `twtxt.txt` follow v1 or v2?
+
+        Feeds following the v2 spec will typically have metadata fields, along with mentions and subject hashes.
+
+        ```
+          # nick = john
+          # url = https://example.com/twtxt.txt
+          # description = My personal twtxt feed
+          # avatar = https://example.com/avatar.png
+          # kind = user
+          # refresh = 600
+          # following = 1
+          # follow = jane https://someone.dev/twtxt.txt
+          # link = GitHub https://github.com/username
+          # prev = abc1234 https://example.com/twtxt-2017-2-7.txt
+
+          2026-03-01T03:10:17Z	Hello everyone!
+          2026-03-01T04:21:27Z	(#abc1234) Hello?
+          2026-03-01T04:21:57Z	@<taxevaiden https://taxevaiden.pages.dev/twtxt.txt>?
+        ```
+      options:
+        - v1
+        - v2
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Open twtGUI
+        2. Navigate to ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant config.toml (optional)
+      description: |
+        Paste any relevant sections. Feel free to redact your URLs or nick if you'd prefer.
+
+        You can find config.toml in your system's configuration directory:
+
+        | Platform | File path |
+        |----------|-----------|
+        | Windows  | `C:\Users\yourname\AppData\Roaming\taxevaiden\twtGUI\config\config.toml` |
+        | macOS    | `/Users/yourname/Library/Application Support/com.taxevaiden.twtGUI/config.toml` |
+        | Linux    | `/home/yourname/.config/twtgui/config.toml` |
+      render: toml
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Panic output or logs (optional)
+      description: |
+        If twtGUI crashed or printed any errors, paste them here.
+
+        You can paste the output through the built-in Logs page, but it'd be preferred to paste the log file instead.
+
+        You can find the log directory through your system's data directory:
+
+        | Platform | File path |
+        |----------|-----------|
+        | Windows  | `C:\Users\yourname\AppData\Roaming\taxevaiden\twtGUI\data\twtgui.log` |
+        | macOS    | `/Users/yourname/Library/Application Support/com.taxevaiden.twtGUI/twtgui.log` |
+        | Linux    | `/home/yourname/.local/share/twtgui/twtgui.log` |
+      render: shell
