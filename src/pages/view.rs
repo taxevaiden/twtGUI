@@ -128,7 +128,7 @@ impl ViewPage {
                 info!("Feed successfully loaded for {}", url);
                 self.metadata = bundle.metadata.clone();
                 self.tweets = bundle.tweets;
-                self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                self.tweets.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
                 let thread_tree = build_threads(&self.tweets);
                 let feed_task = self
                     .feed

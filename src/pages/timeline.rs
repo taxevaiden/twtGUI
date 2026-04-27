@@ -223,7 +223,7 @@ impl TimelinePage {
     }
 
     fn sort_and_refresh(&mut self) -> Task<Message> {
-        self.tweets.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        self.tweets.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
         let thread_tree = build_threads(&self.tweets);
         self.feed
             .reset(&thread_tree, &self.tweets)
