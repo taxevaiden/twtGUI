@@ -2,9 +2,9 @@
   <img width="256" alt="The twtGUI logo" src="./assets/icon.svg">
 </p>
 
-# twtGUI
-
 <img align="right" width="400" alt="The twtGUI client" src="./assets/client.png">
+
+# twtGUI
 
 A graphical client for twtxt
  
