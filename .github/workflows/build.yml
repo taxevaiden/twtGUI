@@ -38,8 +38,8 @@ jobs:
         run: cargo build --release --target x86_64-pc-windows-msvc
 
       - name: Zip binary
-        shell: bash
-        run: zip twtGUI-windows-x86_64.zip target/x86_64-pc-windows-msvc/release/twtgui.exe
+        shell: pwsh
+        run: Compress-Archive -Path target/x86_64-pc-windows-msvc/release/twtgui.exe -DestinationPath twtGUI-windows-x86_64.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
