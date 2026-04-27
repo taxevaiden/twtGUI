@@ -1,8 +1,9 @@
 <p align="center">
   <img width="256" alt="The twtGUI logo" src="./assets/icon.svg">
+  <img width="400" alt="The twtGUI client" src="./assets/client.png">
 </p>
 
-<img align="right" width="400" alt="The twtGUI client" src="./assets/client.png">
+
 
 # twtGUI
 
