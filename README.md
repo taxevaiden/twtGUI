@@ -1,13 +1,14 @@
 <p align="center">
-  <img width="256" alt="The twtGUI logo" src="./assets/icon.svg">
-  <img width="400" alt="The twtGUI client" src="./assets/client.png">
+  <img width="96" alt="The twtGUI logo" src="./assets/icon.svg">
 </p>
 
+<h1 align="center">twtGUI</h1>
 
+<p align="center">A graphical twtxt client built with Rust + Iced</p>
 
-# twtGUI
-
-A graphical client for twtxt
+<p align="center">
+  <img width="600" alt="The twtGUI client" src="./assets/client.png">
+</p>
  
 > [!IMPORTANT]
 > This project is under active development and may introduce breaking changes! Please check for updates regularly.
