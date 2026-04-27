@@ -11,21 +11,9 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            binary: twtgui
-            asset_name: twtGUI-linux-x86_64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            binary: twtgui.exe
-            asset_name: twtGUI-windows-x86_64.exe
-
+  build-windows:
+    name: Build (Windows)
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,7 +22,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-pc-windows-msvc
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -43,11 +31,42 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ matrix.target }}-cargo-
+          key: windows-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: windows-cargo-
 
-      - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: twtGUI-windows-x86_64.exe
+          path: target/x86_64-pc-windows-msvc/release/twtgui.exe
+
+  build-appimage:
+    name: Build (AppImage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: linux-cargo-
+
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -58,29 +77,148 @@ jobs:
             pkg-config
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target x86_64-unknown-linux-gnu
 
-      - name: Rename binary
-        shell: bash
-        run: cp target/${{ matrix.target }}/release/${{ matrix.binary }} ${{ matrix.asset_name }}
+      - name: Build AppImage
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+
+          mkdir -p twtGUI.AppDir/usr/bin
+          cp target/x86_64-unknown-linux-gnu/release/twtgui twtGUI.AppDir/usr/bin/twtgui
+          chmod +x twtGUI.AppDir/usr/bin/twtgui
+          cp assets/icon.png twtGUI.AppDir/twtGUI.png
+
+          cat > twtGUI.AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          exec "$APPDIR/usr/bin/twtgui" "$@"
+          EOF
+          chmod +x twtGUI.AppDir/AppRun
+
+          cat > twtGUI.AppDir/twtGUI.desktop << 'EOF'
+          [Desktop Entry]
+          Name=twtGUI
+          Exec=twtgui
+          Icon=twtGUI
+          Type=Application
+          Categories=Network;
+          EOF
+
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage twtGUI.AppDir twtGUI-x86_64.AppImage
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset_name }}
-          path: ${{ matrix.asset_name }}
+          name: twtGUI-x86_64.AppImage
+          path: twtGUI-x86_64.AppImage
+
+  build-macos:
+    name: Build (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: macos-cargo-
+
+      - name: Build (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Build (aarch64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Create universal binary
+        run: |
+          lipo -create \
+            target/x86_64-apple-darwin/release/twtgui \
+            target/aarch64-apple-darwin/release/twtgui \
+            -output twtGUI-macos-universal
+
+      - name: Compute version
+        id: version
+        run: |
+          HASH=$(git rev-parse --short HEAD)
+          DATE=$(date -u +"%Y.%-m%d")
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "full=${DATE}-${HASH}" >> $GITHUB_OUTPUT
+
+      - name: Bundle .app
+        run: |
+          mkdir -p twtGUI.app/Contents/MacOS
+          mkdir -p twtGUI.app/Contents/Resources
+
+          cp twtGUI-macos-universal twtGUI.app/Contents/MacOS/twtgui
+          chmod +x twtGUI.app/Contents/MacOS/twtgui
+
+          mkdir -p AppIcon.iconset
+          sips -z 16 16     assets/icon.svg --out AppIcon.iconset/icon_16x16.png
+          sips -z 32 32     assets/icon.svg --out AppIcon.iconset/icon_16x16@2x.png
+          sips -z 32 32     assets/icon.svg --out AppIcon.iconset/icon_32x32.png
+          sips -z 64 64     assets/icon.svg --out AppIcon.iconset/icon_32x32@2x.png
+          sips -z 128 128   assets/icon.svg --out AppIcon.iconset/icon_128x128.png
+          sips -z 256 256   assets/icon.svg --out AppIcon.iconset/icon_128x128@2x.png
+          sips -z 256 256   assets/icon.svg --out AppIcon.iconset/icon_256x256.png
+          sips -z 512 512   assets/icon.svg --out AppIcon.iconset/icon_256x256@2x.png
+          sips -z 512 512   assets/icon.svg --out AppIcon.iconset/icon_512x512.png
+          sips -z 1024 1024 assets/icon.svg --out AppIcon.iconset/icon_512x512@2x.png
+          iconutil -c icns AppIcon.iconset -o twtGUI.app/Contents/Resources/AppIcon.icns
+
+          cat > twtGUI.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>
+            <string>twtGUI</string>
+            <key>CFBundleDisplayName</key>
+            <string>twtGUI</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.taxevaiden.twtGUI</string>
+            <key>CFBundleVersion</key>
+            <string>${{ steps.version.outputs.date }}</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${{ steps.version.outputs.full }}</string>
+            <key>CFBundleExecutable</key>
+            <string>twtgui</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+          zip -r twtGUI-macos.zip twtGUI.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: twtGUI-macos.zip
+          path: twtGUI-macos.zip
 
   release:
     name: Create Release
-    needs: build
+    needs: [build-windows, build-appimage, build-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # replicate the same logic as build.rs:
-      # format!("%Y.%-m%d") + "-" + short hash
       - name: Compute version
         id: version
         run: |
@@ -99,6 +237,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
           files: |
-            twtGUI-linux-x86_64
             twtGUI-windows-x86_64.exe
+            twtGUI-x86_64.AppImage
+            twtGUI-macos.zip
           generate_release_notes: false
