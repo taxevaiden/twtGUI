@@ -24,7 +24,9 @@ This client supports every desktop operating system (Windows, macOS, Linux). You
 > ```
 > Then open the app normally.
 
-If you encounter any issues, [please open one!](https://github.com/taxevaiden/twtGUI/issues/new)
+If you encounter any issues, [please open a bug report!](https://github.com/taxevaiden/twtGUI/issues/new?template=bug_report.yml)
+
+If you want to see a new feature or improvement, [please open a feature request!](https://github.com/taxevaiden/twtGUI/issues/new?template=feature_request.yml)
 
 ## Building
 
@@ -33,9 +35,13 @@ You will need the following prerequisites:
 - Rust
 - Cargo
 
-You can install both of these through [Rustup.](https://rust-lang.org/learn/get-started/#:~:text=Rustup%3A%20the%20Rust%20installer%20and%20version%20management%20tool)
+You can install both of these through [Rustup.](https://rustup.rs/)
 
 After installing, simply clone this repository and run `cargo run` (or `cargo run --release` for a release build, which takes longer to compile but is much faster) in the root directory. Cargo should automatically install any dependencies.
+
+## Contributing
+
+Please refer to [CONTRIBUTING.md.](CONTRIBUTING.md)
 
 ## Features
 
@@ -198,6 +204,6 @@ Script files should be in `.bat` format on Windows, and in `.sh` format on Unix-
 
 ## License
 
-twtGUI is licensed under the MIT License. See the [LICENSE](https://github.com/taxevaiden/twtGUI/blob/main/LICENSE) file for details.
+twtGUI is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 twtGUI uses the Iosevka font familiy, which is licensed under the SIL Open Font License. See the [Iosevka](https://github.com/be5invis/Iosevka) repository for details.

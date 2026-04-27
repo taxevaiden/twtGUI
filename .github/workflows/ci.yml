@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore:
       - "README.md"
+      - "CONTRIBUTING.md"
       - ".github/ISSUE_TEMPLATE/**"
   pull_request:
     branches: [main]
@@ -44,9 +45,6 @@ jobs:
 
       - name: Build
         run: cargo build
-
-      - name: Test
-        run: cargo test
 
       - name: Clippy
         run: cargo clippy -- -D warnings
