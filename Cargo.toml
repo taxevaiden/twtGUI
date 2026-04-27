@@ -3,9 +3,6 @@ name = "twtgui"
 version = "0.1.0"
 edition = "2024"
 
-[profile.release]
-debug = true
-
 [dependencies]
 iced = { version = "0.14", features = ["wgpu", "image", "markdown", "highlighter", "tokio"] }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
