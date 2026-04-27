@@ -74,6 +74,7 @@ pub struct Link {
 /// as well as the follow list, links, and refresh hints.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Metadata {
     /// The URL(s) of the feed that produced the tweets.
     ///
@@ -106,23 +107,6 @@ pub struct Metadata {
 
     /// Refresh interval hint (in seconds).
     pub refresh: Option<u64>,
-}
-
-impl Default for Metadata {
-    fn default() -> Self {
-        Self {
-            urls: Vec::new(),
-            nick: None,
-            avatar: None,
-            description: None,
-            kind: None,
-            follows: Vec::new(),
-            following: None,
-            links: Vec::new(),
-            prev: Vec::new(),
-            refresh: None,
-        }
-    }
 }
 
 /// A coherent bundle of feed data (tweets and optional metadata).

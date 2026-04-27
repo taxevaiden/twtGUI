@@ -246,16 +246,15 @@ pub async fn download_and_parse_twtxt(
     let raw_hash = hash_sha256_str(&raw);
     let parsed_path = get_parsed_cache_path(&url)?;
 
-    if let Ok(cached_str) = std::fs::read_to_string(&parsed_path) {
-        if let Ok(cache) = serde_json::from_str::<ParsedCache>(&cached_str) {
-            if cache.content_hash == raw_hash {
-                let mut bundle = cache.bundle;
-                for tweet in &mut bundle.tweets {
-                    tweet.md_items = markdown::parse(&tweet.content).collect();
-                }
-                return Ok(apply_nick_override(bundle, &nick, use_nick));
-            }
+    if let Ok(cached_str) = std::fs::read_to_string(&parsed_path)
+        && let Ok(cache) = serde_json::from_str::<ParsedCache>(&cached_str)
+        && cache.content_hash == raw_hash
+    {
+        let mut bundle = cache.bundle;
+        for tweet in &mut bundle.tweets {
+            tweet.md_items = markdown::parse(&tweet.content).collect();
         }
+        return Ok(apply_nick_override(bundle, &nick, use_nick));
     }
 
     let metadata = crate::utils::parse_metadata(&raw);

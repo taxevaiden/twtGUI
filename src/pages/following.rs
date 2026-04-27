@@ -80,17 +80,16 @@ impl FollowingPage {
             Message::EditUrlChanged(v) => self.edit_url = v,
 
             Message::SaveEdit => {
-                if let Some(old_name) = self.editing.take() {
-                    if let Some(link) = config
+                if let Some(old_name) = self.editing.take()
+                    && let Some(link) = config
                         .metadata
                         .follows
                         .iter_mut()
                         .find(|l| l.text == old_name)
-                    {
-                        link.text = self.edit_name.clone();
-                        link.url = self.edit_url.clone();
-                        let _ = config.save();
-                    }
+                {
+                    link.text = self.edit_name.clone();
+                    link.url = self.edit_url.clone();
+                    let _ = config.save();
                 }
             }
 
@@ -144,8 +143,8 @@ impl FollowingPage {
                 list = list.push(
                     row![
                         row![
-                            text(format!("{}", name)).width(Length::Fill),
-                            text(format!("{}", url)).width(Length::FillPortion(2))
+                            text(name.to_string()).width(Length::Fill),
+                            text(url.to_string()).width(Length::FillPortion(2))
                         ]
                         .spacing(16)
                         .padding(8),

@@ -45,7 +45,7 @@ pub enum Message {
     /// Request to navigate to another page.
     RedirectToPage(crate::app::RedirectInfo),
     /// A message coming from a specific tweet component.
-    TweetMessage(usize, tweet::Message),
+    Tweet(usize, tweet::Message),
     /// Navigate back one level in the thread stack.
     ThreadBack,
 }
@@ -136,23 +136,23 @@ impl LazyThreadedFeed {
                 }
             }
 
-            Message::TweetMessage(_, tweet::Message::ReplyClicked(index)) => {
+            Message::Tweet(_, tweet::Message::ReplyClicked(index)) => {
                 Task::done(Message::ReplyClicked(index))
             }
 
-            Message::TweetMessage(_, tweet::Message::LinkClicked(url)) => {
+            Message::Tweet(_, tweet::Message::LinkClicked(url)) => {
                 Task::done(Message::LinkClicked(url))
             }
 
-            Message::TweetMessage(_, tweet::Message::ThreadClicked(index)) => {
+            Message::Tweet(_, tweet::Message::ThreadClicked(index)) => {
                 self.drill_into_thread(index, tweets)
             }
 
-            Message::TweetMessage(index, msg) => {
+            Message::Tweet(index, msg) => {
                 if let Some(node) = find_node_mut(&mut self.built_threads, index) {
                     node.component
                         .update(msg)
-                        .map(move |m| Message::TweetMessage(index, m))
+                        .map(move |m| Message::Tweet(index, m))
                 } else {
                     Task::none()
                 }
@@ -212,7 +212,7 @@ impl LazyThreadedFeed {
     }
 }
 
-fn find_node_mut(nodes: &mut Vec<BuiltNode>, index: usize) -> Option<&mut BuiltNode> {
+fn find_node_mut(nodes: &mut [BuiltNode], index: usize) -> Option<&mut BuiltNode> {
     for node in nodes.iter_mut() {
         if node.component.index == index {
             return Some(node);
@@ -247,7 +247,7 @@ fn build_nodes(threads: &[TweetNode], tweets: &[Tweet]) -> (Vec<BuiltNode>, Task
 fn build_node(node: &TweetNode, tweets: &[Tweet]) -> (BuiltNode, Task<Message>) {
     let index = node.index;
     let (component, task) = TweetComponent::new(index, tweets);
-    let task = task.map(move |msg| Message::TweetMessage(index, msg));
+    let task = task.map(move |msg| Message::Tweet(index, msg));
 
     let mut sorted_children = node.children.clone();
     sorted_children.sort_by_key(|child| tweets[child.index].timestamp);
@@ -273,7 +273,7 @@ fn render_built_node<'a>(node: &'a BuiltNode, tweets: &'a [Tweet]) -> Column<'a,
     let tweet_view = node
         .component
         .view(tweets)
-        .map(move |msg| Message::TweetMessage(index, msg));
+        .map(move |msg| Message::Tweet(index, msg));
 
     let mut thread_col = column![tweet_view].spacing(8);
 

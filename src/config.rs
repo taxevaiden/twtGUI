@@ -259,12 +259,13 @@ impl AppConfig {
             let trimmed = line.trim_start_matches('#').trim();
             let key = trimmed.split_whitespace().next().unwrap_or("");
 
-            if let Some(values) = known_map.get(key) {
-                if !values.is_empty() && !used_keys.contains(key) {
-                    updated_other_lines.push(format!("# {} = {}", key, values[0].clone()));
-                    used_keys.insert(key.to_string());
-                    continue;
-                }
+            if let Some(values) = known_map.get(key)
+                && !values.is_empty()
+                && !used_keys.contains(key)
+            {
+                updated_other_lines.push(format!("# {} = {}", key, values[0].clone()));
+                used_keys.insert(key.to_string());
+                continue;
             }
 
             updated_other_lines.push(line);
@@ -282,11 +283,11 @@ impl AppConfig {
         ];
 
         for &key in &keys_order {
-            if let Some(values) = known_map.get(key) {
-                if !used_keys.contains(key) {
-                    for val in values {
-                        updated_other_lines.push(format!("# {} = {}", key, val));
-                    }
+            if let Some(values) = known_map.get(key)
+                && !used_keys.contains(key)
+            {
+                for val in values {
+                    updated_other_lines.push(format!("# {} = {}", key, val));
                 }
             }
         }

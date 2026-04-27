@@ -51,12 +51,12 @@ pub enum Message {
     FeedLoaded {
         nick: String,
         url: String,
-        result: Result<FeedBundle, String>,
+        result: Box<Result<FeedBundle, String>>,
     },
     /// An avatar image has finished downloading.
     AvatarLoaded {
         url: String, // The URL of the feed these tweets belong to
-        result: Result<Bytes, String>,
+        result: Box<Result<Bytes, String>>,
     },
     /// Trigger a navigation to another page.
     RedirectToPage(crate::app::RedirectInfo),
@@ -127,7 +127,7 @@ impl TimelinePage {
                     tasks.push(Task::done(Message::FeedLoaded {
                         nick,
                         url,
-                        result: Ok(bundle),
+                        result: Box::new(Ok(bundle)),
                     }));
                 }
 
@@ -143,7 +143,7 @@ impl TimelinePage {
                         move |result| Message::FeedLoaded {
                             nick: follow_nick.clone(),
                             url: follow_url.clone(),
-                            result,
+                            result: Box::new(result),
                         },
                     ));
                 }
@@ -154,7 +154,7 @@ impl TimelinePage {
             }
 
             Message::FeedLoaded { nick, url, result } => {
-                let Ok(bundle) = result else {
+                let Ok(bundle) = *result else {
                     error!("Error loading feed for {} @ {}", nick, url);
                     return self.decrement_pending();
                 };
@@ -170,7 +170,7 @@ impl TimelinePage {
                         Task::perform(download_binary(avatar_url), move |res| {
                             Message::AvatarLoaded {
                                 url: url.clone(),
-                                result: res,
+                                result: Box::new(res),
                             }
                         })
                     })
@@ -180,7 +180,7 @@ impl TimelinePage {
             }
 
             Message::AvatarLoaded { url, result } => {
-                if let Ok(bytes) = result {
+                if let Ok(bytes) = *result {
                     info!("Avatar successfully loaded for {}", url);
                     let handle = Handle::from_bytes(bytes);
 
@@ -191,7 +191,7 @@ impl TimelinePage {
                     for tweet in self.tweets.iter_mut().filter(|t| t.url == url) {
                         tweet.avatar = handle.clone();
                     }
-                } else if let Err(e) = result {
+                } else if let Err(e) = *result {
                     error!("Error loading avatar for {}: {}", url, e);
                 }
 

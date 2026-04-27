@@ -48,12 +48,12 @@ pub enum Message {
     /// A feed has finished loading.
     FeedLoaded {
         url: String,
-        result: Result<FeedBundle, String>,
+        result: Box<Result<FeedBundle, String>>,
     },
     /// An avatar image has finished downloading.
     AvatarLoaded {
         url: String,
-        result: Result<Bytes, String>,
+        result: Box<Result<Bytes, String>>,
     },
     /// Navigate to another page.
     RedirectToPage(crate::app::RedirectInfo),
@@ -109,7 +109,10 @@ impl ViewPage {
                     reset_task,
                     Task::perform(
                         download_and_parse_twtxt("unknown".into(), url.clone(), false),
-                        move |result| Message::FeedLoaded { url, result },
+                        move |result| Message::FeedLoaded {
+                            url,
+                            result: Box::new(result),
+                        },
                     ),
                 ])
             }
@@ -117,7 +120,7 @@ impl ViewPage {
             Message::FeedLoaded { url, result } => {
                 self.pending_downloads -= 1;
 
-                let Ok(bundle) = result else {
+                let Ok(bundle) = *result else {
                     error!("Error loading feed for {}", url);
                     return Task::none();
                 };
@@ -140,7 +143,7 @@ impl ViewPage {
                         Task::perform(download_binary(avatar_url), move |res| {
                             Message::AvatarLoaded {
                                 url: url.clone(),
-                                result: res,
+                                result: Box::new(res),
                             }
                         })
                     })
@@ -150,7 +153,7 @@ impl ViewPage {
             }
 
             Message::AvatarLoaded { url, result } => {
-                if let Ok(bytes) = result {
+                if let Ok(bytes) = *result {
                     info!("Avatar successfully loaded for {}", url);
                     let handle = Handle::from_bytes(bytes);
                     self.avatar_bytes = Some(handle.clone());
@@ -158,7 +161,7 @@ impl ViewPage {
                     for tweet in self.tweets.iter_mut().filter(|t| t.url == url) {
                         tweet.avatar = handle.clone();
                     }
-                } else if let Err(e) = result {
+                } else if let Err(e) = *result {
                     error!("Error loading avatar for {}: {}", url, e);
                 }
 
@@ -238,7 +241,7 @@ impl ViewPage {
             .as_ref()
             .and_then(|m| m.following.as_ref())
             .cloned()
-            .unwrap_or_else(|| {
+            .unwrap_or({
                 if let Some(m) = &self.metadata {
                     m.follows.len() as u64
                 } else {
@@ -257,7 +260,6 @@ impl ViewPage {
                 .width(Length::Fixed(56.0))
                 .height(Length::Fixed(56.0))
                 .border_radius(28)
-                .filter_method(iced::widget::image::FilterMethod::Linear)
                 .into()
         } else {
             container(text("?").size(20))
@@ -284,7 +286,6 @@ impl ViewPage {
                 .width(Length::Fixed(32.0))
                 .height(Length::Fixed(32.0))
                 .border_radius(16)
-                .filter_method(iced::widget::image::FilterMethod::Linear)
                 .into()
         } else {
             container(text("?").size(13))

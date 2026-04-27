@@ -12,9 +12,9 @@ use tracing::error;
 #[derive(Debug, Clone)]
 pub enum Message {
     /// The user has clicked on the card.
-    UserClicked(),
+    UserClicked,
     /// An avatar image has finished downloading.
-    AvatarLoaded(String, Result<Bytes, String>),
+    AvatarLoaded(Box<Result<Bytes, String>>),
     /// Navigate to another page.
     RedirectToPage(crate::app::RedirectInfo),
 }
@@ -34,7 +34,7 @@ impl UserCard {
     ) -> (Self, Task<Message>) {
         let task = if let Some(url) = avatar_url {
             Task::perform(download_binary(url.clone()), move |res| {
-                Message::AvatarLoaded(url, res)
+                Message::AvatarLoaded(Box::new(res))
             })
         } else {
             Task::none()
@@ -51,23 +51,28 @@ impl UserCard {
 
     pub fn update(&mut self, msg: Message) -> Task<Message> {
         match msg {
-            Message::AvatarLoaded(_, Ok(bytes)) => {
-                if self.avatar.is_none() {
-                    self.avatar = Some(Handle::from_bytes(bytes));
+            Message::AvatarLoaded(result) => match *result {
+                Ok(bytes) => {
+                    if self.avatar.is_none() {
+                        self.avatar = Some(Handle::from_bytes(bytes));
+                    }
+                    Task::none()
                 }
-                Task::none()
-            }
+                Err(e) => {
+                    error!("Failed to load image: {}", e);
+                    Task::none()
+                }
+            },
 
-            Message::AvatarLoaded(url, Err(e)) => {
-                error!("Failed to load image {}: {}", url, e);
-                Task::none()
-            }
-
-            Message::UserClicked() => {
-                Task::done(Message::RedirectToPage(crate::app::RedirectInfo {
-                    page: crate::app::Page::View,
-                    content: self.user_url.clone().unwrap(),
-                }))
+            Message::UserClicked => {
+                if let Some(url) = self.user_url.clone() {
+                    Task::done(Message::RedirectToPage(crate::app::RedirectInfo {
+                        page: crate::app::Page::View,
+                        content: url,
+                    }))
+                } else {
+                    Task::none()
+                }
             }
 
             Message::RedirectToPage(info) => Task::done(Message::RedirectToPage(info)),
@@ -102,7 +107,7 @@ impl UserCard {
                     .spacing(8)
                     .align_y(iced::Alignment::Center),
             )
-            .on_press(Message::UserClicked())
+            .on_press(Message::UserClicked)
             .style(prim_button_style)
             .padding([8, 16])
             .width(Length::Fill)
