@@ -312,7 +312,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
           files: |
-            twtGUI-windows-x86_64.exe
+            twtGUI-windows-x86_64.zip
             twtGUI-x86_64.AppImage
             twtGUI-macos-intel.zip
             twtGUI-macos-arm.zip
