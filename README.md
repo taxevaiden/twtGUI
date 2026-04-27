@@ -15,9 +15,14 @@
 
 ## Installing
 
-This client supports every desktop operating system (Windows, macOS, Linux).
+This client supports every desktop operating system (Windows, macOS, Linux). You can grab the latest release [here.](https://github.com/taxevaiden/twtGUI/releases/latest)
 
-For Windows/Linux users, you can grab the latest release [here.](https://github.com/taxevaiden/twtGUI/releases/latest) macOS users will have to build twtGUI themselves. (sorry)
+> **macOS note:** macOS may show a warning that twtGUI is damaged. 
+> This is because the app is not notarized. Run:
+> ```
+> xattr -cr /path/to/twtGUI.app
+> ```
+> Then open the app normally.
 
 If you encounter any issues, [please open one!](https://github.com/taxevaiden/twtGUI/issues/new)
 

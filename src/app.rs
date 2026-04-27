@@ -291,7 +291,7 @@ impl TwtxtApp {
         };
 
         column![
-            space().height(if cfg!(target_os = "macos") { 16 } else { 8 }),
+            space().height(if cfg!(target_os = "macos") { 16 } else { 0 }),
             row![
                 nav,
                 container(content)
