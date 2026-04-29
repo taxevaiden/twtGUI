@@ -17,7 +17,7 @@ Cargo should automatically install any dependencies.
 
 ## Before Contributing
 
-Because this project is under active development and may introduce breaking changes, you should open an issue first before working on anything significant. Then we can discuss whether it fits twtGUI's direction and prevent any conflicts with ongoing work.
+You should open an issue first before working on anything significant. Then, we can discuss whether it fits twtGUI's direction and prevent any conflicts with ongoing work.
 
 For small changes (typos, minor bugs with obvious fixes, documentation), you can go straight to opening a pull request.
 
@@ -38,7 +38,7 @@ Pull requests should pass both `cargo fmt` and `cargo clippy` without any warnin
 
 To ensure things are simple and maintainable:
 
-- Please keep them small and focused (i probably won't have time to review large PRs... i'm sorry...)
+- Please keep them small and focused ( i probably won't have time to review large PRs... i'm sorry... :( )
 - Target the `main` branch
 - Describe your changes and why you're making them
 - Reference any relevant issues

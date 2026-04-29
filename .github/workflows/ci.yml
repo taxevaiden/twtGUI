@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths-ignore:
       - "README.md"
+      - "CONTRIBUTING.md"
       - ".github/ISSUE_TEMPLATE/**"
 
 jobs:

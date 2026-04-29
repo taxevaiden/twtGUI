@@ -2,9 +2,9 @@
 //!
 //! This module focuses on parsing the raw twtxt text.
 
-use crate::utils::{Link, Metadata, Tweet, compute_twt_hash};
+use crate::utils::{Link, Metadata, Tweet, compute_twt_hash, hash::hash_sha256_str};
 use chrono::{DateTime, Utc};
-use iced::widget::{image::Handle, markdown};
+use iced::widget::markdown;
 use regex::Regex;
 
 /// Parses a single tweet line, extracting a reply hash and converting mentions to markdown.
@@ -141,8 +141,9 @@ pub fn parse_metadata(input: &str) -> Option<Metadata> {
 ///
 /// `author` is the display name to assign to each tweet, and `url` is the
 /// canonical feed URL used for hash computation.
-pub fn parse_tweets(author: &str, url: &str, avatar: Option<Handle>, input: &str) -> Vec<Tweet> {
+pub fn parse_tweets(author: &str, url: &str, input: &str) -> Vec<Tweet> {
     let author_name = author.to_string();
+    let feed_hash = hash_sha256_str(input);
 
     input
         .lines()
@@ -158,11 +159,9 @@ pub fn parse_tweets(author: &str, url: &str, avatar: Option<Handle>, input: &str
                 timestamp: DateTime::parse_from_rfc3339(timestamp_str)
                     .ok()?
                     .with_timezone(&Utc),
+                feed_hash: feed_hash.clone(),
                 author: author_name.clone(),
                 url: url.to_string(),
-                avatar: avatar
-                    .clone()
-                    .unwrap_or_else(|| Handle::from_path("assets/default_avatar.png")),
                 content: display_content,
                 md_items: items,
             })

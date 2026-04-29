@@ -15,7 +15,7 @@ pub use parsing::{parse_metadata, parse_tweets, parse_twt_contents};
 pub use threading::build_threads;
 
 use chrono::{DateTime, Utc};
-use iced::widget::{image::Handle, markdown};
+use iced::widget::markdown;
 use serde::{Deserialize, Serialize};
 use std::process::{Child, Command};
 
@@ -44,9 +44,8 @@ pub struct Tweet {
     /// The markdown-ready content extracted from the twtxt line.
     pub content: String,
 
-    /// The cached avatar image handle used for rendering.
-    #[serde(skip, default = "default_avatar")]
-    pub avatar: Handle,
+    /// The sha256 hash of the feed that provided this tweet.
+    pub feed_hash: String,
 
     /// The parsed markdown items used by the UI renderer.
     #[serde(skip)]
@@ -113,12 +112,17 @@ pub struct Metadata {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeedBundle {
     pub tweets: Vec<Tweet>,
-    /// Metadata may be missing if the feed did not provide any metadata. (like a twtxt v1 feed)
+    /// Metadata could be missing since it's possible a feed could be a twtxt v1 feed
     pub metadata: Option<Metadata>,
 }
 
-fn default_avatar() -> Handle {
-    Handle::from_path("assets/default_avatar.png")
+/// Internal cache format used when keeping a parsed feed around.
+///
+/// Stores the hash of the raw content so we can skip re-parsing unchanged input.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ParsedCache {
+    pub content_hash: String,
+    pub bundle: FeedBundle,
 }
 
 /// Runs a shell script (with optional arguments).

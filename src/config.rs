@@ -51,6 +51,11 @@ pub struct AppFilePaths {
     /// Path to a script file that is run before a tweet is posted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pre_tweet_script: Option<String>,
+    /// Path to a script file that is run when a tweet is posted. When this is set, the tweet
+    /// is not automatically appended to `twtxt.txt` by twtGUI and is instead passed to the script as an argument.
+    /// The timestamp is NOT passed to the script, so the script must handle timestamp formatting itself.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tweet_script: Option<String>,
     /// Path to a script file that is run after a tweet is posted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_tweet_script: Option<String>,
@@ -74,6 +79,7 @@ impl Default for AppConfig {
             paths: AppFilePaths {
                 twtxt: String::new(),
                 pre_tweet_script: None,
+                tweet_script: None,
                 post_tweet_script: None,
             },
         }

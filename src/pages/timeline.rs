@@ -6,19 +6,20 @@ use iced::{
     Alignment, Element, Length, Task,
     widget::{button, column, image::Handle, markdown, row, text, text_editor},
 };
-use std::fs::OpenOptions;
+
 use std::io::Write;
+use std::{fs::OpenOptions, io::Read};
 use tracing::{error, info};
 
-use crate::config::AppConfig;
 use crate::utils::{
-    FeedBundle, Tweet, TweetNode, build_threads, compute_twt_hash, download_and_parse_twtxt,
-    download_binary, parse_metadata, parse_tweets, parse_twt_contents,
+    FeedBundle, ParsedCache, Tweet, TweetNode, build_threads, compute_twt_hash,
+    download_and_parse_twtxt, download_binary, parse_metadata, parse_tweets, parse_twt_contents,
 };
 use crate::{
     components::threaded_feed::{self, LazyThreadedFeed},
     utils::run_script,
 };
+use crate::{config::AppConfig, utils::hash::hash_sha256_str};
 
 /// The state for the timeline page.
 ///
@@ -29,9 +30,9 @@ pub struct TimelinePage {
     composer: text_editor::Content,
     tweets: Vec<Tweet>,
     thread_tree: Vec<TweetNode>,
-    local_avatar: Option<Handle>,
     pending_downloads: usize,
     feed: LazyThreadedFeed,
+    local_hash: Option<String>,
 }
 
 /// Messages used to update the timeline page.
@@ -51,12 +52,13 @@ pub enum Message {
     FeedLoaded {
         nick: String,
         url: String,
-        result: Box<Result<FeedBundle, String>>,
+        result: Box<Result<ParsedCache, String>>,
     },
     /// An avatar image has finished downloading.
     AvatarLoaded {
         url: String, // The URL of the feed these tweets belong to
         result: Box<Result<Bytes, String>>,
+        hash: String,
     },
     /// Trigger a navigation to another page.
     RedirectToPage(crate::app::RedirectInfo),
@@ -73,8 +75,8 @@ impl TimelinePage {
                 composer: text_editor::Content::new(),
                 tweets: Vec::new(),
                 thread_tree: Vec::new(),
-                local_avatar: None,
                 pending_downloads: 0,
+                local_hash: None,
                 feed,
             },
             feed_task.map(Message::Feed),
@@ -107,6 +109,7 @@ impl TimelinePage {
             Message::Refresh => {
                 self.tweets.clear();
                 self.thread_tree.clear();
+                self.feed.avatars.clear();
                 let reset_task = self.feed.reset(&[], &[]).map(Message::Feed);
 
                 let mut tasks = Vec::new();
@@ -121,13 +124,20 @@ impl TimelinePage {
 
                     let bundle = FeedBundle {
                         metadata: parse_metadata(&content),
-                        tweets: parse_tweets(&nick, &url, None, &content),
+                        tweets: parse_tweets(&nick, &url, &content),
+                    };
+
+                    let content_hash = hash_sha256_str(&content);
+
+                    let parsed = ParsedCache {
+                        bundle,
+                        content_hash,
                     };
 
                     tasks.push(Task::done(Message::FeedLoaded {
                         nick,
                         url,
-                        result: Box::new(Ok(bundle)),
+                        result: Box::new(Ok(parsed)),
                     }));
                 }
 
@@ -154,23 +164,30 @@ impl TimelinePage {
             }
 
             Message::FeedLoaded { nick, url, result } => {
-                let Ok(bundle) = *result else {
+                let Ok(parsed) = *result else {
                     error!("Error loading feed for {} @ {}", nick, url);
                     return self.decrement_pending();
                 };
 
                 info!("Feed successfully loaded for {} @ {}", nick, url);
-                self.tweets.extend(bundle.tweets);
 
-                let avatar_task = bundle
+                let content_hash = parsed.content_hash.clone();
+                let avatar_url = parsed
+                    .bundle
                     .metadata
-                    .and_then(|meta| meta.avatar)
+                    .as_ref()
+                    .and_then(|m| m.avatar.clone());
+
+                self.tweets.extend(parsed.bundle.tweets);
+
+                let avatar_task = avatar_url
                     .map(|avatar_url| {
                         self.pending_downloads += 1;
                         Task::perform(download_binary(avatar_url), move |res| {
                             Message::AvatarLoaded {
                                 url: url.clone(),
                                 result: Box::new(res),
+                                hash: content_hash.clone(),
                             }
                         })
                     })
@@ -179,22 +196,16 @@ impl TimelinePage {
                 Task::batch([self.decrement_pending(), avatar_task])
             }
 
-            Message::AvatarLoaded { url, result } => {
-                if let Ok(bytes) = *result {
-                    info!("Avatar successfully loaded for {}", url);
-                    let handle = Handle::from_bytes(bytes);
-
-                    if url == config.metadata.urls[0] {
-                        self.local_avatar = Some(handle.clone());
+            Message::AvatarLoaded { url, result, hash } => {
+                match *result {
+                    Ok(bytes) => {
+                        info!("Avatar successfully loaded for {}", url);
+                        self.feed.avatars.insert(hash, Handle::from_bytes(bytes));
                     }
-
-                    for tweet in self.tweets.iter_mut().filter(|t| t.url == url) {
-                        tweet.avatar = handle.clone();
+                    Err(e) => {
+                        error!("Error loading avatar for {}: {}", url, e);
                     }
-                } else if let Err(e) = *result {
-                    error!("Error loading avatar for {}: {}", url, e);
                 }
-
                 self.decrement_pending()
             }
 
@@ -257,10 +268,6 @@ impl TimelinePage {
         };
 
         let now = Utc::now();
-        let avatar = self
-            .local_avatar
-            .clone()
-            .unwrap_or_else(|| Handle::from_bytes(Bytes::new()));
 
         let (reply_to, display_content) = parse_twt_contents(&composer_text);
         let url = config.metadata.urls.first().cloned().unwrap_or_default();
@@ -268,18 +275,32 @@ impl TimelinePage {
 
         let written = composer_text.replace("\n", "\\u2028");
 
+        let feed_hash = if let Some(hash) = &self.local_hash {
+            hash.clone()
+        } else {
+            let mut file = OpenOptions::new()
+                .read(true)
+                .open(&config.paths.twtxt)
+                .unwrap();
+            let mut contents = String::new();
+            file.read_to_string(&mut contents).ok();
+            hash_sha256_str(&contents)
+        };
+
         let new_tweet = Tweet {
             hash: compute_twt_hash(&url, &timestamp_str, &written),
             reply_to,
             timestamp: now,
             author: nick,
             url,
-            avatar,
             content: display_content.clone(),
+            feed_hash,
             md_items: markdown::parse(&display_content).collect(),
         };
 
-        if let Ok(mut file) = OpenOptions::new()
+        if let Some(path) = &config.paths.tweet_script {
+            run_script(path, &[&written]).ok();
+        } else if let Ok(mut file) = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&config.paths.twtxt)

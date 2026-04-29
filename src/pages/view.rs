@@ -17,7 +17,7 @@ use iced::{
 use tracing::{error, info};
 
 use crate::utils::{
-    FeedBundle, Metadata, Tweet, TweetNode, download_and_parse_twtxt, download_binary,
+    Metadata, ParsedCache, Tweet, TweetNode, download_and_parse_twtxt, download_binary,
     styling::sec_button_style,
 };
 use crate::{components::threaded_feed, config::AppConfig};
@@ -28,12 +28,12 @@ use crate::{components::threaded_feed::LazyThreadedFeed, utils::build_threads};
 /// This page is responsible for displaying a single feed and its metadata.
 pub struct ViewPage {
     composer: String,
-    avatar_bytes: Option<Handle>,
     tweets: Vec<Tweet>,
     thread_tree: Vec<TweetNode>,
     metadata: Option<Metadata>,
     pending_downloads: usize,
     feed: LazyThreadedFeed,
+    feed_hash: String,
     selected_follow: Option<String>,
     info_expanded: bool,
 }
@@ -48,12 +48,13 @@ pub enum Message {
     /// A feed has finished loading.
     FeedLoaded {
         url: String,
-        result: Box<Result<FeedBundle, String>>,
+        result: Box<Result<ParsedCache, String>>,
     },
     /// An avatar image has finished downloading.
     AvatarLoaded {
         url: String,
         result: Box<Result<Bytes, String>>,
+        hash: String,
     },
     /// Navigate to another page.
     RedirectToPage(crate::app::RedirectInfo),
@@ -75,12 +76,12 @@ impl ViewPage {
         (
             Self {
                 composer: config.metadata.urls.first().cloned().unwrap_or_default(),
-                avatar_bytes: None,
                 tweets: Vec::new(),
                 thread_tree: Vec::new(),
                 metadata: None,
                 pending_downloads: 0,
                 feed,
+                feed_hash: String::new(),
                 selected_follow: None,
                 info_expanded: true,
             },
@@ -98,8 +99,9 @@ impl ViewPage {
             Message::ViewPressed => {
                 self.tweets.clear();
                 self.thread_tree.clear();
+                self.feed.avatars.clear();
                 self.metadata = None;
-                self.avatar_bytes = None;
+                self.feed_hash = String::new();
                 self.pending_downloads = 1;
                 let reset_task = self.feed.reset(&[], &[]).map(Message::Feed);
 
@@ -120,22 +122,24 @@ impl ViewPage {
             Message::FeedLoaded { url, result } => {
                 self.pending_downloads -= 1;
 
-                let Ok(bundle) = *result else {
+                let Ok(parsed) = *result else {
                     error!("Error loading feed for {}", url);
                     return Task::none();
                 };
 
                 info!("Feed successfully loaded for {}", url);
-                self.metadata = bundle.metadata.clone();
-                self.tweets = bundle.tweets;
+                self.metadata = parsed.bundle.metadata.clone();
+                self.tweets = parsed.bundle.tweets;
                 self.tweets.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
+                self.feed_hash = parsed.content_hash.clone();
                 let thread_tree = build_threads(&self.tweets);
                 let feed_task = self
                     .feed
                     .reset(&thread_tree, &self.tweets)
                     .map(Message::Feed);
 
-                let avatar_task = bundle
+                let avatar_task = parsed
+                    .bundle
                     .metadata
                     .and_then(|meta| meta.avatar)
                     .map(|avatar_url| {
@@ -144,6 +148,7 @@ impl ViewPage {
                             Message::AvatarLoaded {
                                 url: url.clone(),
                                 result: Box::new(res),
+                                hash: parsed.content_hash.clone(),
                             }
                         })
                     })
@@ -152,15 +157,11 @@ impl ViewPage {
                 Task::batch([feed_task, avatar_task])
             }
 
-            Message::AvatarLoaded { url, result } => {
+            Message::AvatarLoaded { url, result, hash } => {
                 if let Ok(bytes) = *result {
                     info!("Avatar successfully loaded for {}", url);
                     let handle = Handle::from_bytes(bytes);
-                    self.avatar_bytes = Some(handle.clone());
-
-                    for tweet in self.tweets.iter_mut().filter(|t| t.url == url) {
-                        tweet.avatar = handle.clone();
-                    }
+                    self.feed.avatars.insert(hash, handle.clone());
                 } else if let Err(e) = *result {
                     error!("Error loading avatar for {}: {}", url, e);
                 }
@@ -255,57 +256,59 @@ impl ViewPage {
             .map(|m| m.links.clone())
             .unwrap_or_default();
 
-        let avatar_expanded: Element<_> = if let Some(handle) = &self.avatar_bytes {
-            image::Image::new(handle.clone())
-                .width(Length::Fixed(56.0))
-                .height(Length::Fixed(56.0))
-                .border_radius(28)
-                .into()
-        } else {
-            container(text("?").size(20))
-                .width(Length::Fixed(56.0))
-                .height(Length::Fixed(56.0))
-                .center_x(Length::Fixed(56.0))
-                .center_y(Length::Fixed(56.0))
-                .style(|theme: &Theme| {
-                    let ext = theme.extended_palette();
-                    container::Style {
-                        background: Some(Background::Color(ext.background.strong.color)),
-                        border: Border {
-                            radius: Radius::from(28.0),
+        let avatar_expanded: Element<_> =
+            if let Some(handle) = self.feed.avatars.get(&self.feed_hash) {
+                image::Image::new(handle.clone())
+                    .width(Length::Fixed(56.0))
+                    .height(Length::Fixed(56.0))
+                    .border_radius(28)
+                    .into()
+            } else {
+                container(text("?").size(28))
+                    .width(Length::Fixed(56.0))
+                    .height(Length::Fixed(56.0))
+                    .center_x(Length::Fixed(56.0))
+                    .center_y(Length::Fixed(56.0))
+                    .style(|theme: &Theme| {
+                        let ext = theme.extended_palette();
+                        container::Style {
+                            background: Some(Background::Color(ext.background.strong.color)),
+                            border: Border {
+                                radius: Radius::from(28.0),
+                                ..Default::default()
+                            },
                             ..Default::default()
-                        },
-                        ..Default::default()
-                    }
-                })
-                .into()
-        };
+                        }
+                    })
+                    .into()
+            };
 
-        let avatar_collapsed: Element<_> = if let Some(handle) = &self.avatar_bytes {
-            image::Image::new(handle.clone())
-                .width(Length::Fixed(32.0))
-                .height(Length::Fixed(32.0))
-                .border_radius(16)
-                .into()
-        } else {
-            container(text("?").size(13))
-                .width(Length::Fixed(32.0))
-                .height(Length::Fixed(32.0))
-                .center_x(Length::Fixed(32.0))
-                .center_y(Length::Fixed(32.0))
-                .style(|theme: &Theme| {
-                    let ext = theme.extended_palette();
-                    container::Style {
-                        background: Some(Background::Color(ext.background.strong.color)),
-                        border: Border {
-                            radius: Radius::from(16.0),
+        let avatar_collapsed: Element<_> =
+            if let Some(handle) = self.feed.avatars.get(&self.feed_hash) {
+                image::Image::new(handle)
+                    .width(Length::Fixed(32.0))
+                    .height(Length::Fixed(32.0))
+                    .border_radius(16)
+                    .into()
+            } else {
+                container(text("?").size(16))
+                    .width(Length::Fixed(32.0))
+                    .height(Length::Fixed(32.0))
+                    .center_x(Length::Fixed(32.0))
+                    .center_y(Length::Fixed(32.0))
+                    .style(|theme: &Theme| {
+                        let ext = theme.extended_palette();
+                        container::Style {
+                            background: Some(Background::Color(ext.background.strong.color)),
+                            border: Border {
+                                radius: Radius::from(16.0),
+                                ..Default::default()
+                            },
                             ..Default::default()
-                        },
-                        ..Default::default()
-                    }
-                })
-                .into()
-        };
+                        }
+                    })
+                    .into()
+            };
 
         let timeline = self.feed.view(&self.tweets).map(Message::Feed);
 

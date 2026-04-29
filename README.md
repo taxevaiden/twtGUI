@@ -176,7 +176,7 @@ url = "https://old.example.com/twtxt.txt"
 
 ### `[paths]`
 
-Contains the filepaths to three files: the local `twtxt.txt` file, and two scripts to run before and after posting a tweet (in other words, before and after the tweet is written to the local `twtxt.txt` file).
+Contains the filepaths to three files: the local `twtxt.txt` file, and three scripts.
 
 - `twtxt`  
   The filepath to your local `twtxt.txt` file.
@@ -184,6 +184,11 @@ Contains the filepaths to three files: the local `twtxt.txt` file, and two scrip
 
 - `pre_tweet_script`  
   The filepath to a script to run before posting a tweet.
+
+- `tweet_script`
+  The filepath to a script to run when posting a tweet.  
+  When this is set, the tweet is not automatically appended to `twtxt.txt` by twtGUI and is instead passed to the `tweet_script` as an argument.
+  The timestamp is **not** passed to the script, so your script must handle timestamp formatting itself.
 
 - `post_tweet_script`  
   The filepath to a script to run after posting a tweet.

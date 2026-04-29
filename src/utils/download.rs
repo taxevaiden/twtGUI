@@ -8,13 +8,29 @@ use bytes::Bytes;
 use iced::widget::markdown;
 use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 use tracing::{debug, info};
 
-use crate::utils::paths::cache_root;
+use crate::utils::ParsedCache;
+use crate::utils::hash::hash_sha256_str;
+use crate::utils::paths::{get_bin_cache_paths, get_parsed_cache_path, get_txt_cache_path};
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("BUILD_VERSION"));
+
+use std::sync::OnceLock;
+
+static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn get_client() -> reqwest::Client {
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .user_agent(APP_USER_AGENT)
+                .build()
+                .expect("Failed to build client")
+        })
+        .clone()
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct CacheMetadata {
@@ -28,54 +44,6 @@ struct CacheEntry {
     metadata: CacheMetadata,
 }
 
-/// Internal cache format used when keeping a parsed feed around.
-///
-/// Stores the hash of the raw content so we can skip re-parsing unchanged input.
-#[derive(Serialize, Deserialize, Debug)]
-struct ParsedCache {
-    content_hash: String,
-    bundle: FeedBundle,
-}
-
-/// Returns the cache path for storing the raw twtxt content for a given URL.
-fn get_txt_cache_path(url: &str) -> Result<PathBuf, String> {
-    let hash = hash_sha256_str(url);
-    let mut path = cache_root()?;
-    path.push(format!("{hash}.json"));
-    Ok(path)
-}
-
-/// Returns the cache file paths used for binary downloads (data + metadata).
-fn get_bin_cache_paths(url: &str) -> Result<(PathBuf, PathBuf), String> {
-    let hash = hash_sha256_str(url);
-    let dir = cache_root()?;
-
-    let mut data_path = dir.clone();
-    data_path.push(format!("{hash}.bin"));
-
-    let mut meta_path = dir;
-    meta_path.push(format!("{hash}.meta"));
-
-    Ok((data_path, meta_path))
-}
-
-/// Returns the cache path for a parsed twtxt bundle (used to avoid re-parsing when unchanged).
-fn get_parsed_cache_path(url: &str) -> Result<PathBuf, String> {
-    let hash = hash_sha256_str(url);
-    let mut path = cache_root()?;
-    path.push(format!("{hash}.parsed.json"));
-    Ok(path)
-}
-
-/// Computes a SHA-256 hash of the provided string.
-fn hash_sha256_str(s: &str) -> String {
-    use sha2::{Digest, Sha256};
-
-    let mut hasher = Sha256::new();
-    hasher.update(s.as_bytes());
-    hex::encode(hasher.finalize())
-}
-
 /// Downloads a binary file and caches it on disk using HTTP caching headers.
 ///
 /// This can be used to download anything, however it's primarily intended for images
@@ -83,12 +51,9 @@ fn hash_sha256_str(s: &str) -> String {
 ///
 /// Returns the cached bytes if the server responds with `304 Not Modified`.
 pub async fn download_binary(url: String) -> Result<Bytes, String> {
-    debug!("Downloading file from {}", url);
+    let client = get_client();
 
-    let client = reqwest::Client::builder()
-        .user_agent(APP_USER_AGENT)
-        .build()
-        .map_err(|e| e.to_string())?;
+    debug!("Downloading file from {}", url);
 
     let (data_path, meta_path) = get_bin_cache_paths(&url)?;
 
@@ -160,12 +125,9 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
 ///
 /// Uses HTTP `ETag`/`Last-Modified` headers to avoid re-downloading unchanged feeds.
 pub async fn download_twtxt(url: String) -> Result<String, String> {
-    debug!("Downloading twtxt.txt from {}", url);
+    let client = get_client();
 
-    let client = reqwest::Client::builder()
-        .user_agent(APP_USER_AGENT)
-        .build()
-        .map_err(|e| e.to_string())?;
+    debug!("Downloading twtxt.txt from {}", url);
 
     let cache_path = get_txt_cache_path(&url)?;
 
@@ -228,7 +190,7 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
     Ok(content)
 }
 
-/// Downloads a twtxt feed, parses it into a `FeedBundle`, and caches the parsed result.
+/// Downloads a twtxt feed, parses it into a `ParsedCache`, and caches the parsed result.
 ///
 /// If the feed content has not changed since the last download, the previously parsed
 /// bundle is reused.
@@ -241,20 +203,19 @@ pub async fn download_and_parse_twtxt(
     nick: String,
     url: String,
     use_nick: bool,
-) -> Result<FeedBundle, String> {
+) -> Result<ParsedCache, String> {
     let raw = download_twtxt(url.clone()).await?;
     let raw_hash = hash_sha256_str(&raw);
     let parsed_path = get_parsed_cache_path(&url)?;
 
     if let Ok(cached_str) = std::fs::read_to_string(&parsed_path)
-        && let Ok(cache) = serde_json::from_str::<ParsedCache>(&cached_str)
+        && let Ok(mut cache) = serde_json::from_str::<ParsedCache>(&cached_str)
         && cache.content_hash == raw_hash
     {
-        let mut bundle = cache.bundle;
-        for tweet in &mut bundle.tweets {
+        for tweet in &mut cache.bundle.tweets {
             tweet.md_items = markdown::parse(&tweet.content).collect();
         }
-        return Ok(apply_nick_override(bundle, &nick, use_nick));
+        return Ok(apply_nick_override(cache, &nick, use_nick));
     }
 
     let metadata = crate::utils::parse_metadata(&raw);
@@ -270,27 +231,30 @@ pub async fn download_and_parse_twtxt(
                 .unwrap_or_else(|| nick.clone())
         });
 
-    let tweets = crate::utils::parse_tweets(&canonical_nick, &url, None, &raw);
+    let tweets = crate::utils::parse_tweets(&canonical_nick, &url, &raw);
 
-    let canonical_bundle = FeedBundle { tweets, metadata };
-
-    let cache = ParsedCache {
+    let mut cache = ParsedCache {
         content_hash: raw_hash,
-        bundle: canonical_bundle.clone(),
+        bundle: FeedBundle { tweets, metadata },
     };
 
-    let _ = std::fs::write(parsed_path, serde_json::to_string(&cache).unwrap());
+    let serialized = serde_json::to_string(&cache).map_err(|e| e.to_string())?;
+    let _ = std::fs::write(parsed_path, serialized);
 
-    Ok(apply_nick_override(canonical_bundle, &nick, use_nick))
+    for tweet in &mut cache.bundle.tweets {
+        tweet.md_items = markdown::parse(&tweet.content).collect();
+    }
+
+    Ok(apply_nick_override(cache, &nick, use_nick))
 }
 
 /// Optionally overrides the author name for all tweets in the bundle.
-fn apply_nick_override(mut bundle: FeedBundle, nick: &str, use_nick: bool) -> FeedBundle {
+fn apply_nick_override(mut parsed: ParsedCache, nick: &str, use_nick: bool) -> ParsedCache {
     if use_nick {
-        for tweet in &mut bundle.tweets {
+        for tweet in &mut parsed.bundle.tweets {
             tweet.author = nick.to_string();
         }
     }
 
-    bundle
+    parsed
 }

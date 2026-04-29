@@ -4,15 +4,18 @@ use crate::utils::{Tweet, download_binary, styling::sec_button_style};
 use bytes::Bytes;
 use chrono::Local;
 use iced::{
-    Background, Border, Color, ContentFit, Element, Length, Padding, Pixels, Task,
+    Background, Border, Color, ContentFit, Element, Length, Padding, Pixels, Task, Theme,
+    border::Radius,
     widget::{
         Image, button, column, container,
         image::Handle,
         markdown::{self, Highlight},
-        rich_text, row, space, span,
+        rich_text, row, space, span, text,
     },
 };
 use tracing::error;
+
+use std::collections::HashMap;
 
 /// Messages used by the tweet component.
 #[derive(Debug, Clone)]
@@ -24,7 +27,7 @@ pub enum Message {
     /// The thread button was clicked.
     ThreadClicked(usize),
     /// An image inside the tweet finished downloading.
-    ImageLoaded(usize, Result<Bytes, String>), // usize = index into image_urls
+    ImageLoaded(usize, Box<Result<Bytes, String>>), // usize = index into image_urls
 }
 
 /// A widget that renders a single tweet, including inline images and avatar.
@@ -46,7 +49,7 @@ impl TweetComponent {
             .map(|(i, url)| {
                 let url = url.clone();
                 Task::perform(download_binary(url), move |res| {
-                    Message::ImageLoaded(i, res)
+                    Message::ImageLoaded(i, Box::new(res))
                 })
             })
             .collect();
@@ -66,34 +69,38 @@ impl TweetComponent {
             Message::LinkClicked(url) => Task::done(Message::LinkClicked(url)),
             Message::ReplyClicked(index) => Task::done(Message::ReplyClicked(index)),
             Message::ThreadClicked(index) => Task::done(Message::ThreadClicked(index)),
-            Message::ImageLoaded(i, Ok(bytes)) => {
-                if i < self.image_handles.len() {
-                    let dims = image::load_from_memory(&bytes).ok().map(|img| {
-                        let (w, h) = (img.width(), img.height());
-                        (w, h)
-                    });
+            Message::ImageLoaded(i, result) => {
+                match *result {
+                    Ok(bytes) => {
+                        if i < self.image_handles.len() {
+                            let dims = image::load_from_memory(&bytes)
+                                .ok()
+                                .map(|img| (img.width(), img.height()));
 
-                    if let Some((w, h)) = dims {
-                        self.image_handles[i] = Some((Handle::from_bytes(bytes), w, h));
-                    } else {
-                        // fallback!
-                        self.image_handles[i] = Some((Handle::from_bytes(bytes), 0, 0));
+                            self.image_handles[i] = Some(match dims {
+                                Some((w, h)) => (Handle::from_bytes(bytes), w, h),
+                                None => (Handle::from_bytes(bytes), 0, 0),
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to load image {}: {}",
+                            self.image_urls.get(i).map(String::as_str).unwrap_or("?"),
+                            e
+                        );
                     }
                 }
-                Task::none()
-            }
-            Message::ImageLoaded(i, Err(e)) => {
-                error!(
-                    "Failed to load image {}: {}",
-                    self.image_urls.get(i).map(String::as_str).unwrap_or("?"),
-                    e
-                );
                 Task::none()
             }
         }
     }
 
-    pub fn view<'a>(&'a self, tweets: &'a [Tweet]) -> Element<'a, Message> {
+    pub fn view<'a>(
+        &'a self,
+        tweets: &'a [Tweet],
+        avatars: &'a HashMap<String, Handle>,
+    ) -> Element<'a, Message> {
         let tweet = &tweets[self.index];
 
         let code_bg = Color::from_rgba(0.0, 0.0, 0.0, 0.08);
@@ -118,11 +125,33 @@ impl TweetComponent {
         )
         .map(Message::LinkClicked);
 
-        let avatar_img = Image::new(tweet.avatar.clone())
-            .width(Length::Fixed(48.0))
-            .height(Length::Fixed(48.0))
-            .border_radius(24)
-            .filter_method(iced::widget::image::FilterMethod::Linear);
+        let handle = avatars.get(&tweet.feed_hash);
+        let avatar_img: Element<Message> = if let Some(avatar) = handle {
+            Image::new(avatar)
+                .width(Length::Fixed(48.0))
+                .height(Length::Fixed(48.0))
+                .border_radius(24)
+                .filter_method(iced::widget::image::FilterMethod::Linear)
+                .into()
+        } else {
+            container(text("?").size(24))
+                .width(Length::Fixed(48.0))
+                .height(Length::Fixed(48.0))
+                .center_x(Length::Fixed(48.0))
+                .center_y(Length::Fixed(48.0))
+                .style(|theme: &Theme| {
+                    let ext = theme.extended_palette();
+                    container::Style {
+                        background: Some(Background::Color(ext.background.strong.color)),
+                        border: Border {
+                            radius: Radius::from(24.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }
+                })
+                .into()
+        };
 
         let formatted_time = tweet
             .timestamp
@@ -195,12 +224,18 @@ impl TweetComponent {
 
 /// Recursively collects image URLs from markdown items.
 fn collect_image_urls(items: &[markdown::Item]) -> Vec<String> {
-    items
-        .iter()
-        .flat_map(|item| match item {
-            markdown::Item::Image { url, .. } => vec![url.clone()],
-            markdown::Item::Quote(inner) => collect_image_urls(inner),
-            _ => vec![],
-        })
-        .collect()
+    let mut urls = Vec::new();
+    collect_image_urls_into(items, &mut urls);
+    urls
+}
+
+/// Recursively collects image URLs from markdown items into the output vector.
+fn collect_image_urls_into(items: &[markdown::Item], out: &mut Vec<String>) {
+    for item in items {
+        match item {
+            markdown::Item::Image { url, .. } => out.push(url.clone()),
+            markdown::Item::Quote(inner) => collect_image_urls_into(inner, out),
+            _ => {}
+        }
+    }
 }

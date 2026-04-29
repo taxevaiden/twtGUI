@@ -3,8 +3,17 @@
 //! This module provides a utility function for computing tweet hashes used by the twtxt v2 specification.
 
 use chrono::{DateTime, TimeZone, Utc};
+use hex;
+use sha2::{Digest, Sha256};
 
 use data_encoding::BASE32_NOPAD;
+
+/// Computes a SHA-256 hash of the provided string.
+pub fn hash_sha256_str(s: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(s.as_bytes());
+    hex::encode(hasher.finalize())
+}
 
 /// Computes the canonical tweet hash used by the twtxt protocol.
 ///

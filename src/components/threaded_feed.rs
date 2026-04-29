@@ -6,8 +6,9 @@ use crate::components::tweet::{self, TweetComponent};
 use crate::utils::{Tweet, TweetNode};
 use iced::{
     Element, Length, Task,
-    widget::{Column, Id, button, column, container, row, scrollable, space},
+    widget::{Column, Id, button, column, container, image::Handle, row, scrollable, space},
 };
+use std::collections::HashMap;
 use tracing::error;
 
 /// How many additional threads to load when reaching the bottom of the scroll.
@@ -26,10 +27,14 @@ struct BuiltNode {
 }
 
 /// A snapshot pushed onto the navigation stack when drilling into a thread.
-/// Stores the source `TweetNode` tree (which is Clone) rather than `BuiltNode`
-/// (which is not, due to image handles), so we can rebuild on ThreadBack.
+///
+/// Both the source `TweetNode` tree and the already-built `BuiltNode` tree are
+/// stored so that `ThreadBack` can restore either without any rebuild.
 struct StackEntry {
     source_threads: Vec<TweetNode>,
+    built_threads: Vec<BuiltNode>,
+    /// The flat lookup map that was active at this stack level.
+    node_index: HashMap<usize, Vec<usize>>,
     visible_threads_count: usize,
 }
 
@@ -56,12 +61,23 @@ pub struct LazyThreadedFeed {
     visible_threads_count: usize,
     source_threads: Vec<TweetNode>,
     built_threads: Vec<BuiltNode>,
+    /// Flat map from tweet index -> path of child-positions through `built_threads`.
+    ///
+    /// A path like `[2, 0, 1]` means:
+    ///   `built_threads[2].children[0].children[1]`
+    ///
+    /// This is rebuilt whenever `built_threads` is replaced (new feed, drill,
+    /// or back-navigation) and keeps `find_node_mut` from walking the tree on
+    /// every message.
+    node_index: HashMap<usize, Vec<usize>>,
     thread_stack: Vec<StackEntry>,
+    pub avatars: HashMap<String, Handle>,
 }
 
 impl LazyThreadedFeed {
     pub fn new(threads: &[TweetNode], tweets: &[Tweet]) -> (Self, Task<Message>) {
         let (built, task) = build_nodes(threads, tweets);
+        let node_index = build_index(&built);
         let total = built.len();
         (
             Self {
@@ -69,7 +85,9 @@ impl LazyThreadedFeed {
                 visible_threads_count: INITIAL_LOAD.min(total),
                 source_threads: threads.to_vec(),
                 built_threads: built,
+                node_index,
                 thread_stack: Vec::new(),
+                avatars: HashMap::new(),
             },
             task,
         )
@@ -77,6 +95,7 @@ impl LazyThreadedFeed {
 
     pub fn reset(&mut self, threads: &[TweetNode], tweets: &[Tweet]) -> Task<Message> {
         let (built, task) = build_nodes(threads, tweets);
+        self.node_index = build_index(&built);
         self.source_threads = threads.to_vec();
         self.built_threads = built;
         self.visible_threads_count = INITIAL_LOAD.min(self.built_threads.len());
@@ -107,12 +126,11 @@ impl LazyThreadedFeed {
 
             Message::ThreadBack => {
                 if let Some(entry) = self.thread_stack.pop() {
-                    // Rebuild BuiltNodes fresh from the saved source tree.
-                    let (built, task) = build_nodes(&entry.source_threads, tweets);
                     self.source_threads = entry.source_threads;
-                    self.built_threads = built;
+                    self.built_threads = entry.built_threads;
+                    self.node_index = entry.node_index;
                     self.visible_threads_count = entry.visible_threads_count;
-                    task
+                    Task::none()
                 } else {
                     Task::none()
                 }
@@ -149,7 +167,8 @@ impl LazyThreadedFeed {
             }
 
             Message::Tweet(index, msg) => {
-                if let Some(node) = find_node_mut(&mut self.built_threads, index) {
+                if let Some(node) = find_node_mut(&mut self.built_threads, &self.node_index, index)
+                {
                     node.component
                         .update(msg)
                         .map(move |m| Message::Tweet(index, m))
@@ -160,18 +179,25 @@ impl LazyThreadedFeed {
         }
     }
 
-    /// Push the current source tree onto the stack, then rebuild from only the
-    /// subtree rooted at `index`.
+    /// Push the current trees onto the stack, then rebuild from only the
+    /// subtree rooted at index.
     fn drill_into_thread(&mut self, index: usize, tweets: &[Tweet]) -> Task<Message> {
         if let Some(focused_source) = find_source_node(&self.source_threads, index) {
-            // Save the current level before replacing anything.
+            // Take ownership of the current trees before replacing them.
+            let prev_source = std::mem::take(&mut self.source_threads);
+            let prev_built = std::mem::take(&mut self.built_threads);
+            let prev_index = std::mem::take(&mut self.node_index);
+
             self.thread_stack.push(StackEntry {
-                source_threads: std::mem::take(&mut self.source_threads),
+                source_threads: prev_source,
+                built_threads: prev_built,
+                node_index: prev_index,
                 visible_threads_count: self.visible_threads_count,
             });
 
             let focused_sources = vec![focused_source];
             let (built, task) = build_nodes(&focused_sources, tweets);
+            self.node_index = build_index(&built);
             self.source_threads = focused_sources;
             self.built_threads = built;
             self.visible_threads_count = INITIAL_LOAD.min(self.built_threads.len());
@@ -197,7 +223,7 @@ impl LazyThreadedFeed {
 
         for node in visible {
             col = col.push(
-                container(render_built_node(node, tweets))
+                container(render_built_node(node, tweets, &self.avatars))
                     .width(Length::Fill)
                     .padding(12.0),
             );
@@ -212,16 +238,47 @@ impl LazyThreadedFeed {
     }
 }
 
-fn find_node_mut(nodes: &mut [BuiltNode], index: usize) -> Option<&mut BuiltNode> {
-    for node in nodes.iter_mut() {
-        if node.component.index == index {
-            return Some(node);
-        }
-        if let Some(found) = find_node_mut(&mut node.children, index) {
-            return Some(found);
-        }
+/// Build a flat  map over the entire `BuiltNode` tree.
+///
+/// A path is the sequence of child-list positions to follow from the root of
+/// built_threads to reach the node. Traversal is O(depth).
+/// O(1) for real thread trees.
+fn build_index(roots: &[BuiltNode]) -> HashMap<usize, Vec<usize>> {
+    let mut map = HashMap::new();
+    for (i, root) in roots.iter().enumerate() {
+        index_node(root, vec![i], &mut map);
     }
-    None
+    map
+}
+
+fn index_node(node: &BuiltNode, path: Vec<usize>, map: &mut HashMap<usize, Vec<usize>>) {
+    map.insert(node.component.index, path.clone());
+    for (i, child) in node.children.iter().enumerate() {
+        let mut child_path = path.clone();
+        child_path.push(i);
+        index_node(child, child_path, map);
+    }
+}
+
+/// Look up a node by tweet index using the cached path map.
+///
+/// Follows the stored path through roots in O(depth) steps.
+fn find_node_mut<'a>(
+    roots: &'a mut Vec<BuiltNode>,
+    index_map: &HashMap<usize, Vec<usize>>,
+    tweet_index: usize,
+) -> Option<&'a mut BuiltNode> {
+    let path = index_map.get(&tweet_index)?;
+
+    let mut iter = path.iter();
+    let first = *iter.next()?;
+    let mut node = roots.get_mut(first)?;
+
+    for &child_pos in iter {
+        node = node.children.get_mut(child_pos)?;
+    }
+
+    Some(node)
 }
 
 /// Recursively find and clone a TweetNode subtree by tweet index.
@@ -268,17 +325,21 @@ fn build_node(node: &TweetNode, tweets: &[Tweet]) -> (BuiltNode, Task<Message>) 
     )
 }
 
-fn render_built_node<'a>(node: &'a BuiltNode, tweets: &'a [Tweet]) -> Column<'a, Message> {
+fn render_built_node<'a>(
+    node: &'a BuiltNode,
+    tweets: &'a [Tweet],
+    avatars: &'a HashMap<String, Handle>,
+) -> Column<'a, Message> {
     let index = node.component.index;
     let tweet_view = node
         .component
-        .view(tweets)
+        .view(tweets, avatars)
         .map(move |msg| Message::Tweet(index, msg));
 
     let mut thread_col = column![tweet_view].spacing(8);
 
     for child in &node.children {
-        let indented = row![space().width(32), render_built_node(child, tweets)];
+        let indented = row![space().width(32), render_built_node(child, tweets, avatars)];
         thread_col = thread_col.push(indented);
     }
 
