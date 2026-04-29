@@ -264,7 +264,7 @@ fn index_node(node: &BuiltNode, path: Vec<usize>, map: &mut HashMap<usize, Vec<u
 ///
 /// Follows the stored path through roots in O(depth) steps.
 fn find_node_mut<'a>(
-    roots: &'a mut Vec<BuiltNode>,
+    roots: &'a mut [BuiltNode],
     index_map: &HashMap<usize, Vec<usize>>,
     tweet_index: usize,
 ) -> Option<&'a mut BuiltNode> {
