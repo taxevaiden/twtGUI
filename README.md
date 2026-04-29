@@ -200,6 +200,7 @@ Contains the filepaths to three files: the local `twtxt.txt` file, and three scr
 [paths]
 twtxt = "C:/path/to/twtxt.txt"
 pre_tweet_script = "C:/path/to/pre_tweet_script.bat"
+tweet_script = "C:/path/to/tweet_script.bat"
 post_tweet_script = "C:/path/to/post_tweet_script.bat"
 ```
 
