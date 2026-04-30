@@ -23,6 +23,7 @@ use crate::{
 };
 use crate::{components::user_card::UserCard, config::AppConfig};
 use crate::{config::ThemeChoice, logging::LogBuffer};
+use tracing::{error, info};
 
 /// The application state (model) used by `iced`.
 ///
@@ -165,21 +166,25 @@ impl TwtxtApp {
         match message {
             Message::SwitchToTimeline => {
                 self.page = Page::Timeline;
+                info!("Switched to timeline page!");
                 Task::none()
             }
 
             Message::SwitchToView => {
                 self.page = Page::View;
+                info!("Switched to view page!");
                 Task::none()
             }
 
             Message::SwitchToFollowing => {
                 self.page = Page::Following;
+                info!("Switched to following page!");
                 Task::none()
             }
 
             Message::SwitchToLogs => {
                 self.page = Page::Logs;
+                info!("Switched to logs page!");
                 Task::none()
             }
 
@@ -202,7 +207,10 @@ impl TwtxtApp {
             Message::Timeline(timeline::Message::RedirectToPage(info)) => {
                 self.page = info.page.clone();
                 match self.page {
-                    Page::View => self.view.process_redirect_info(info).map(Message::View),
+                    Page::View => {
+                        info!("Redirecting to view page!");
+                        self.view.process_redirect_info(info).map(Message::View)
+                    }
                     _ => Task::none(),
                 }
             }
@@ -215,7 +223,10 @@ impl TwtxtApp {
             Message::View(view::Message::RedirectToPage(info)) => {
                 self.page = info.page.clone();
                 match self.page {
-                    Page::View => self.view.process_redirect_info(info).map(Message::View),
+                    Page::View => {
+                        info!("Redirecting to view page!");
+                        self.view.process_redirect_info(info).map(Message::View)
+                    }
                     _ => Task::none(),
                 }
             }
@@ -230,7 +241,10 @@ impl TwtxtApp {
             Message::UserCard(user_card::Message::RedirectToPage(info)) => {
                 self.page = info.page.clone();
                 match self.page {
-                    Page::View => self.view.process_redirect_info(info).map(Message::View),
+                    Page::View => {
+                        info!("Redirecting to view page!");
+                        self.view.process_redirect_info(info).map(Message::View)
+                    }
                     _ => Task::none(),
                 }
             }
@@ -238,7 +252,12 @@ impl TwtxtApp {
             Message::UserCard(msg) => self.user_card.update(msg).map(Message::UserCard),
 
             Message::ThemeChanged(theme) => {
-                self.config.theme = theme;
+                self.config.theme = theme.clone();
+                let err = self.config.save();
+                if let Err(e) = err {
+                    error!("Failed to save theme: {}", e);
+                }
+                info!("Theme changed to: {}", theme.to_string());
                 Task::none()
             }
         }
