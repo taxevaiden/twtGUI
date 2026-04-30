@@ -5,7 +5,7 @@
 use crate::components::tweet::{self, TweetComponent};
 use crate::utils::{Tweet, TweetNode};
 use iced::{
-    Element, Length, Task,
+    Element, Length, Task, Theme,
     widget::{Column, Id, button, column, container, image::Handle, row, scrollable, space},
 };
 use std::collections::HashMap;
@@ -207,7 +207,7 @@ impl LazyThreadedFeed {
         }
     }
 
-    pub fn view<'a>(&'a self, tweets: &'a [Tweet]) -> Element<'a, Message> {
+    pub fn view<'a>(&'a self, theme: &Theme, tweets: &'a [Tweet]) -> Element<'a, Message> {
         let visible =
             &self.built_threads[..self.visible_threads_count.min(self.built_threads.len())];
 
@@ -223,7 +223,7 @@ impl LazyThreadedFeed {
 
         for node in visible {
             col = col.push(
-                container(render_built_node(node, tweets, &self.avatars))
+                container(render_built_node(theme, node, tweets, &self.avatars))
                     .width(Length::Fill)
                     .padding(12.0),
             );
@@ -326,6 +326,7 @@ fn build_node(node: &TweetNode, tweets: &[Tweet]) -> (BuiltNode, Task<Message>) 
 }
 
 fn render_built_node<'a>(
+    theme: &Theme,
     node: &'a BuiltNode,
     tweets: &'a [Tweet],
     avatars: &'a HashMap<String, Handle>,
@@ -333,13 +334,16 @@ fn render_built_node<'a>(
     let index = node.component.index;
     let tweet_view = node
         .component
-        .view(tweets, avatars)
+        .view(theme, tweets, avatars)
         .map(move |msg| Message::Tweet(index, msg));
 
     let mut thread_col = column![tweet_view].spacing(8);
 
     for child in &node.children {
-        let indented = row![space().width(32), render_built_node(child, tweets, avatars)];
+        let indented = row![
+            space().width(32),
+            render_built_node(theme, child, tweets, avatars)
+        ];
         thread_col = thread_col.push(indented);
     }
 

@@ -18,7 +18,7 @@ use tracing::{error, info};
 
 use crate::utils::{
     Metadata, ParsedCache, Tweet, TweetNode, download_and_parse_twtxt, download_binary,
-    styling::sec_button_style,
+    styling::{sec_button_style, sec_pick_list_style, sec_pick_menu_style, secondary_text},
 };
 use crate::{components::threaded_feed, config::AppConfig};
 use crate::{components::threaded_feed::LazyThreadedFeed, utils::build_threads};
@@ -211,7 +211,7 @@ impl ViewPage {
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
+    pub fn view(&self, theme: &Theme) -> Element<'_, Message> {
         let nick = self
             .metadata
             .as_ref()
@@ -310,9 +310,9 @@ impl ViewPage {
                     .into()
             };
 
-        let timeline = self.feed.view(&self.tweets).map(Message::Feed);
+        let timeline = self.feed.view(theme, &self.tweets).map(Message::Feed);
 
-        // Link badges row
+        // Links row
         let mut links_row: Row<Message> = row!().spacing(4);
         for link in links {
             links_row = links_row.push(
@@ -334,20 +334,22 @@ impl ViewPage {
                         column![
                             column![
                                 text(nick.clone()).font(crate::app::BOLD_FONT),
-                                text(desc).color(Color::from_rgba(1.0, 1.0, 1.0, 0.55)),
+                                text(desc).color(secondary_text(theme)),
                                 links_row.wrap(),
                             ]
                             .spacing(8),
                             row![
                                 text(format!("{} following", following))
-                                    .color(Color::from_rgba(1.0, 1.0, 1.0, 0.55)),
+                                    .color(secondary_text(theme)),
                                 pick_list(
                                     follows,
                                     self.selected_follow.clone(),
                                     Message::FollowSelected,
                                 )
                                 .placeholder("View a followed feed...")
-                                .width(Length::Fill),
+                                .width(Length::Fill)
+                                .style(sec_pick_list_style)
+                                .menu_style(sec_pick_menu_style),
                             ]
                             .align_y(Alignment::Center)
                             .spacing(8),

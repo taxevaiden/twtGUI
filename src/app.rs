@@ -9,20 +9,20 @@ use iced::{
     border::Radius,
     font,
     widget::{
-        Id, button, column, container, operation::snap_to, row, scrollable,
-        scrollable::RelativeOffset, space, text,
+        Id, button, column, container, operation::snap_to, pick_list, rich_text, row, scrollable,
+        scrollable::RelativeOffset, space, span, text, text::Span,
     },
 };
 
 static LOG_SCROLL_ID: std::sync::LazyLock<Id> = std::sync::LazyLock::new(Id::unique);
 
-use crate::logging::LogBuffer;
 use crate::{
     components::user_card,
     pages::{following, timeline, view},
-    utils::styling::tab_style,
+    utils::styling::{prim_pick_list_style, prim_pick_menu_style, tab_style},
 };
 use crate::{components::user_card::UserCard, config::AppConfig};
+use crate::{config::ThemeChoice, logging::LogBuffer};
 
 /// The application state (model) used by `iced`.
 ///
@@ -60,6 +60,8 @@ pub enum Message {
     Following(following::Message),
     /// A message originating from the user card (forwarded)
     UserCard(user_card::Message),
+    /// The theme has been changed
+    ThemeChanged(ThemeChoice),
 }
 
 /// A simple top-level routing enum for the active page.
@@ -102,6 +104,29 @@ pub static BOLD_FONT: font::Font = font::Font {
 /// The monospace font used throughout the application.
 /// Mainly used in code blocks.
 pub static MONOSPACE_FONT: font::Font = font::Font::with_name("Iosevka");
+
+fn log_line_to_elements<'a>(line: &str, theme: &Theme) -> Vec<Span<'a, Message>> {
+    let ext = theme.extended_palette();
+
+    let color = if line.starts_with("[ERROR]") {
+        Some(ext.danger.base.color)
+    } else if line.starts_with("[WARN]") {
+        Some(ext.warning.base.color)
+    } else if line.starts_with("[INFO]") {
+        Some(ext.primary.base.color)
+    } else if line.starts_with("[DEBUG]") {
+        Some(ext.secondary.base.color)
+    } else {
+        None
+    };
+
+    let s = span(line.to_owned()).font(MONOSPACE_FONT);
+    vec![if let Some(col) = color {
+        s.color(col)
+    } else {
+        s
+    }]
+}
 
 impl TwtxtApp {
     pub fn new(log_buffer: LogBuffer) -> (Self, Task<Message>) {
@@ -211,6 +236,11 @@ impl TwtxtApp {
             }
 
             Message::UserCard(msg) => self.user_card.update(msg).map(Message::UserCard),
+
+            Message::ThemeChanged(theme) => {
+                self.config.theme = theme;
+                Task::none()
+            }
         }
     }
 
@@ -227,7 +257,7 @@ impl TwtxtApp {
             .log_lines
             .iter()
             .fold(column![].spacing(2), |col, line| {
-                col.push(text(line).font(MONOSPACE_FONT))
+                col.push(rich_text(log_line_to_elements(line, &self.theme())))
             });
 
         scrollable(lines)
@@ -273,6 +303,13 @@ impl TwtxtApp {
                 .style(tab_style(self.page == Page::Logs))
                 .width(Length::Fill),
             space().height(Length::Fill),
+            pick_list(
+                ThemeChoice::ALL,
+                Some(self.config.theme.clone()),
+                Message::ThemeChanged
+            )
+            .style(prim_pick_list_style)
+            .menu_style(prim_pick_menu_style),
             self.user_card.view().map(Message::UserCard),
             container(text(env!("BUILD_VERSION")))
                 .padding([8, 16])
@@ -282,8 +319,8 @@ impl TwtxtApp {
         .width(Length::Fixed(175.0));
 
         let content = match self.page {
-            Page::Timeline => self.timeline.view().map(Message::Timeline),
-            Page::View => self.view.view().map(Message::View),
+            Page::Timeline => self.timeline.view(&self.theme()).map(Message::Timeline),
+            Page::View => self.view.view(&self.theme()).map(Message::View),
             Page::Following => self.following.view(&self.config).map(Message::Following),
             Page::Logs => self.view_logs(), // We could make Logs its own separate page struct,
                                             // But it makes more sense to implement this way
@@ -304,5 +341,28 @@ impl TwtxtApp {
         ]
         .spacing(8)
         .into()
+    }
+
+    pub fn theme(&self) -> Theme {
+        match self.config.theme {
+            ThemeChoice::Light => Theme::Light,
+            ThemeChoice::Dark => Theme::Dark,
+            ThemeChoice::System => match dark_light::detect().unwrap_or(dark_light::Mode::Dark) {
+                dark_light::Mode::Dark => Theme::Dark,
+                _ => Theme::Light,
+            },
+            ThemeChoice::CatppuccinMocha => Theme::CatppuccinMocha,
+            ThemeChoice::CatppuccinFrappe => Theme::CatppuccinFrappe,
+            ThemeChoice::CatppuccinMacchiato => Theme::CatppuccinMacchiato,
+            ThemeChoice::CatppuccinLatte => Theme::CatppuccinLatte,
+            ThemeChoice::GruvboxDark => Theme::GruvboxDark,
+            ThemeChoice::GruvboxLight => Theme::GruvboxLight,
+            ThemeChoice::GruvboxSystem => {
+                match dark_light::detect().unwrap_or(dark_light::Mode::Dark) {
+                    dark_light::Mode::Dark => Theme::GruvboxDark,
+                    _ => Theme::GruvboxLight,
+                }
+            }
+        }
     }
 }

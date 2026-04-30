@@ -3,7 +3,7 @@
 use bytes::Bytes;
 use chrono::Utc;
 use iced::{
-    Alignment, Element, Length, Task,
+    Alignment, Element, Length, Task, Theme,
     widget::{button, column, image::Handle, markdown, row, text, text_editor},
 };
 
@@ -318,9 +318,9 @@ impl TimelinePage {
         self.sort_and_refresh()
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
+    pub fn view(&self, theme: &Theme) -> Element<'_, Message> {
         let compose_button = button(
-            text("Compose Tweet")
+            text("Compose Twt")
                 .align_x(Alignment::Center)
                 .width(Length::Fill),
         )
@@ -328,9 +328,17 @@ impl TimelinePage {
         .width(Length::Fill)
         .padding([8, 16]);
 
+        let refresh_button = button("Refresh")
+            .on_press_maybe(if self.pending_downloads == 0 {
+                Some(Message::Refresh)
+            } else {
+                None
+            })
+            .padding([8, 16]);
+
         let mut col = column!().spacing(8);
 
-        col = col.push(compose_button);
+        col = col.push(row![compose_button, refresh_button].spacing(8));
 
         if self.show_composer {
             col = col.push(
@@ -360,23 +368,9 @@ impl TimelinePage {
                 .spacing(8),
             );
         } else if self.pending_downloads == 0 {
-            let scroll = self.feed.view(&self.tweets).map(Message::Feed);
-
-            let refresh_button = button(
-                text("Refresh")
-                    .align_x(Alignment::Center)
-                    .width(Length::Fill),
-            )
-            .on_press_maybe(if self.pending_downloads == 0 {
-                Some(Message::Refresh)
-            } else {
-                None
-            })
-            .width(Length::Fill)
-            .padding([8, 16]);
+            let scroll = self.feed.view(theme, &self.tweets).map(Message::Feed);
 
             col = col.push(scroll);
-            col = col.push(refresh_button);
         }
 
         col.width(Length::Fill).height(Length::Fill).into()

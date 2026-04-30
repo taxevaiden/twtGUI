@@ -14,6 +14,7 @@ use std::{
 
 use crate::utils::Metadata;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 /// Returns the canonical path where the application's config file is stored.
 ///
@@ -29,6 +30,48 @@ fn config_path() -> Result<PathBuf, Box<dyn Error>> {
     Ok(dir.join("config.toml"))
 }
 
+macro_rules! theme_choices {
+    ($($variant:ident => $label:expr),* $(,)?) => {
+        #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+        #[serde(rename_all = "lowercase")]
+        pub enum ThemeChoice {
+            $($variant),*
+        }
+
+        impl ThemeChoice {
+            pub const ALL: &'static [ThemeChoice] = &[$(ThemeChoice::$variant),*];
+        }
+
+        impl fmt::Display for ThemeChoice {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self {
+                    $(ThemeChoice::$variant => write!(f, $label)),*
+                }
+            }
+        }
+    };
+}
+
+theme_choices! {
+    Light => "Light",
+    Dark => "Dark",
+    System => "System",
+    CatppuccinMocha => "Catppuccin Mocha",
+    CatppuccinFrappe => "Catppuccin Frappe",
+    CatppuccinMacchiato => "Catppuccin Macchiato",
+    CatppuccinLatte => "Catppuccin Latte",
+    GruvboxDark => "Gruvbox Dark",
+    GruvboxLight => "Gruvbox Light",
+    GruvboxSystem => "Gruvbox System",
+}
+
+#[allow(clippy::derivable_impls)]
+impl Default for ThemeChoice {
+    fn default() -> Self {
+        ThemeChoice::CatppuccinMocha
+    }
+}
+
 /// Top-level application configuration stored in `config.toml`.
 ///
 /// This includes a cached set of metadata from the user's feed as well as
@@ -41,6 +84,9 @@ pub struct AppConfig {
 
     /// Persisted file paths used by the application.
     pub paths: AppFilePaths,
+
+    /// The theme to use for the application.
+    pub theme: ThemeChoice,
 }
 
 /// Paths to files that are used or created by the application.
@@ -82,6 +128,7 @@ impl Default for AppConfig {
                 tweet_script: None,
                 post_tweet_script: None,
             },
+            theme: ThemeChoice::default(),
         }
     }
 }

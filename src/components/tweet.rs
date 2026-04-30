@@ -1,6 +1,9 @@
 //! A tweet renderer component, responsible for displaying a single tweet line.
 
-use crate::utils::{Tweet, download_binary, styling::sec_button_style};
+use crate::utils::{
+    Tweet, download_binary,
+    styling::{sec_button_style, secondary_text},
+};
 use bytes::Bytes;
 use chrono::Local;
 use iced::{
@@ -98,6 +101,7 @@ impl TweetComponent {
 
     pub fn view<'a>(
         &'a self,
+        theme: &Theme,
         tweets: &'a [Tweet],
         avatars: &'a HashMap<String, Handle>,
     ) -> Element<'a, Message> {
@@ -161,9 +165,9 @@ impl TweetComponent {
         let header = rich_text![
             span(&tweet.author)
                 .font(crate::app::BOLD_FONT)
-                .link(tweet.url.clone()),
+                .link(&tweet.url),
             span(" "),
-            span(formatted_time.to_string()).color(Color::from_rgba(1.0, 1.0, 1.0, 0.55)),
+            span(formatted_time.to_string()).color(secondary_text(theme)),
         ]
         .on_link_click(Message::LinkClicked);
 
@@ -176,14 +180,14 @@ impl TweetComponent {
             let image = if *img_w > 0 && *img_h > 0 {
                 let aspect = *img_h as f32 / *img_w as f32;
                 let render_h = (MAX_WIDTH * aspect).min(MAX_HEIGHT);
-                Image::new(handle.clone())
+                Image::new(handle)
                     .width(Length::Fixed(MAX_WIDTH))
                     .height(Length::Fixed(render_h))
                     .content_fit(ContentFit::Contain)
                     .filter_method(iced::widget::image::FilterMethod::Linear)
             } else {
                 // fallback!
-                Image::new(handle.clone())
+                Image::new(handle)
                     .width(Length::Fill)
                     .height(Length::Shrink)
                     .content_fit(ContentFit::Contain)

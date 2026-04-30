@@ -64,6 +64,7 @@ fn main() -> iced::Result {
         default_text_size: Pixels(12.0),
         ..Default::default()
     })
+    .theme(|app: &TwtxtApp| app.theme())
     .font(
         include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -100,6 +101,5 @@ fn main() -> iced::Result {
         .as_slice(),
     )
     .default_font(font::Font::with_name("Iosevka Aile"))
-    .theme(iced::Theme::CatppuccinMocha)
     .run()
 }
