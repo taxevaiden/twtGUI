@@ -10,7 +10,14 @@ permissions:
   contents: write
 
 jobs:
+  check:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "CI passed, proceeding"
+
   build-windows:
+    needs: check
     name: Build (Windows)
     runs-on: windows-latest
     steps:
@@ -36,17 +43,18 @@ jobs:
       - name: Build
         run: cargo build --release --target x86_64-pc-windows-msvc
 
-      - name: Zip binary
-        shell: pwsh
-        run: Compress-Archive -Path target/x86_64-pc-windows-msvc/release/twtgui.exe -DestinationPath twtGUI-windows-x86_64.zip
+      - name: Rename binary
+        shell: bash
+        run: cp target/x86_64-pc-windows-msvc/release/twtgui.exe twtGUI-x86_64.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: twtGUI-windows-x86_64.zip
-          path: twtGUI-windows-x86_64.zip
+          name: twtGUI-x86_64.exe
+          path: twtGUI-x86_64.exe
 
   build-appimage:
+    needs: check
     name: Build (AppImage)
     runs-on: ubuntu-latest
     steps:
@@ -117,6 +125,7 @@ jobs:
           path: twtGUI-x86_64.AppImage
 
   build-macos-intel:
+    needs: check
     name: Build (macOS Intel)
     runs-on: macos-latest
     steps:
@@ -201,6 +210,7 @@ jobs:
           path: twtGUI-macos-intel.zip
 
   build-macos-arm:
+    needs: check
     name: Build (macOS Apple Silicon)
     runs-on: macos-latest
     steps:
@@ -311,7 +321,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
           files: |
-            twtGUI-windows-x86_64.zip
+            twtGUI-x86_64.exe
             twtGUI-x86_64.AppImage
             twtGUI-macos-intel.zip
             twtGUI-macos-arm.zip

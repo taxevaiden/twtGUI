@@ -4,7 +4,8 @@
 use crate::utils::{download_binary, styling::prim_button_style};
 use bytes::Bytes;
 use iced::{
-    Element, Length, Task,
+    Background, Border, Element, Length, Task, Theme,
+    border::Radius,
     widget::{button, container, image::Handle, row, text},
 };
 use tracing::error;
@@ -87,7 +88,23 @@ impl UserCard {
                 .border_radius(16)
                 .filter_method(iced::widget::image::FilterMethod::Linear)
                 .into(),
-            None => iced::widget::space().width(32).into(),
+            None => container(text("?").size(16))
+                .width(Length::Fixed(32.0))
+                .height(Length::Fixed(32.0))
+                .center_x(Length::Fixed(32.0))
+                .center_y(Length::Fixed(32.0))
+                .style(|theme: &Theme| {
+                    let ext = theme.extended_palette();
+                    container::Style {
+                        background: Some(Background::Color(ext.background.strong.color)),
+                        border: Border {
+                            radius: Radius::from(16.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }
+                })
+                .into(),
         };
 
         let username = text(self.user.clone()).font(crate::app::BOLD_FONT);
