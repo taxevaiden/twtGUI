@@ -84,7 +84,7 @@ pub fn sec_button_style(theme: &Theme, status: button::Status) -> button::Style 
         background: Some(Background::Color(bg)),
         text_color: palette.text,
         border: Border {
-            radius: Radius::from(4.0),
+            radius: Radius::from(8.0),
             width: 0.0,
             color: iced::Color::TRANSPARENT,
         },

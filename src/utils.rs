@@ -17,7 +17,6 @@ pub use threading::build_threads;
 use chrono::{DateTime, Utc};
 use iced::widget::markdown;
 use serde::{Deserialize, Serialize};
-use std::process::{Child, Command};
 
 /// A parsed tweet from a twtxt feed.
 ///
@@ -101,8 +100,8 @@ pub struct Metadata {
     /// Additional links to display on the profile.
     pub links: Vec<Link>,
 
-    /// Links to previous versions or revisions.
-    pub prev: Vec<Link>,
+    /// Link to an archived feed.
+    pub prev: Option<Link>,
 
     /// Refresh interval hint (in seconds).
     pub refresh: Option<u64>,
@@ -112,7 +111,7 @@ pub struct Metadata {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeedBundle {
     pub tweets: Vec<Tweet>,
-    /// Metadata could be missing since it's possible a feed could be a twtxt v1 feed
+    // Metadata could be missing since it's possible a feed could be a twtxt v1 feed
     pub metadata: Option<Metadata>,
 }
 
@@ -123,15 +122,4 @@ pub struct FeedBundle {
 pub struct ParsedCache {
     pub content_hash: String,
     pub bundle: FeedBundle,
-}
-
-/// Runs a shell script (with optional arguments).
-///
-/// On Windows, `.bat` files are run whilst on Unix-like systems, `.sh` files are run.
-pub fn run_script(script: &str, args: &[&str]) -> std::io::Result<Child> {
-    if cfg!(target_os = "windows") {
-        Command::new("cmd").args(["/C", script]).args(args).spawn()
-    } else {
-        Command::new("sh").arg(script).args(args).spawn()
-    }
 }

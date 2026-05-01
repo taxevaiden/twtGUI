@@ -199,9 +199,12 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
 /// `use_nick` controls whether the provided nick should override the feed's own nick.
 ///
 /// Note that `nick` is only used as a display name, and does not affect the actual cached content.
+///
+/// `hash_url` is the URL to use for hashes (feed_hash, twt hash). If `None`, the main feed URL will be used.
 pub async fn download_and_parse_twtxt(
     nick: String,
     url: String,
+    hash_url: Option<String>,
     use_nick: bool,
 ) -> Result<ParsedCache, String> {
     let raw = download_twtxt(url.clone()).await?;
@@ -231,7 +234,7 @@ pub async fn download_and_parse_twtxt(
                 .unwrap_or_else(|| nick.clone())
         });
 
-    let tweets = crate::utils::parse_tweets(&canonical_nick, &url, &raw);
+    let tweets = crate::utils::parse_tweets(&canonical_nick, &url, hash_url.as_deref(), &raw);
 
     let mut cache = ParsedCache {
         content_hash: raw_hash,

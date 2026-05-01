@@ -112,7 +112,7 @@ pub fn parse_metadata(input: &str) -> Option<Metadata> {
             "prev" => {
                 // format: text url
                 if let Some((text, url)) = value.rsplit_once(' ') {
-                    metadata.prev.push(Link {
+                    metadata.prev = Some(Link {
                         text: text.trim().to_string(),
                         url: url.trim().to_string(),
                     });
@@ -141,7 +141,7 @@ pub fn parse_metadata(input: &str) -> Option<Metadata> {
 ///
 /// `author` is the display name to assign to each tweet, and `url` is the
 /// canonical feed URL used for hash computation.
-pub fn parse_tweets(author: &str, url: &str, input: &str) -> Vec<Tweet> {
+pub fn parse_tweets(author: &str, url: &str, hash_url: Option<&str>, input: &str) -> Vec<Tweet> {
     let author_name = author.to_string();
     let feed_hash = hash_sha256_str(input);
 
@@ -154,7 +154,7 @@ pub fn parse_tweets(author: &str, url: &str, input: &str) -> Vec<Tweet> {
             let items = markdown::parse(&display_content).collect();
 
             Some(Tweet {
-                hash: compute_twt_hash(url, timestamp_str, raw_content),
+                hash: compute_twt_hash(hash_url.unwrap_or(url), timestamp_str, raw_content),
                 reply_to,
                 timestamp: DateTime::parse_from_rfc3339(timestamp_str)
                     .ok()?

@@ -23,7 +23,7 @@ For small changes (typos, minor bugs with obvious fixes, documentation), you can
 
 Some good places to start are:
 - Issues labeled with `good first issue`
-- A missing/unfinished implementation of the [twtxt v2 specification's extensions](https://twtxt.dev/)
+- A missing/incomplete/incorrect implementation of the [twtxt v2 specification's extensions](https://twtxt.dev/)
 
 ## Code
 

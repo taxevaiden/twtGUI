@@ -36,6 +36,7 @@ pub struct ViewPage {
     feed_hash: String,
     selected_follow: Option<String>,
     info_expanded: bool,
+    loading_archive: bool,
 }
 
 /// Messages used to update the view page.
@@ -50,11 +51,17 @@ pub enum Message {
         url: String,
         result: Box<Result<ParsedCache, String>>,
     },
+    /// The user pressed the button.
+    LoadArchive,
     /// An avatar image has finished downloading.
     AvatarLoaded {
         url: String,
         result: Box<Result<Bytes, String>>,
         hash: String,
+    },
+    /// An archived feed has finished loading.
+    ArchiveLoaded {
+        result: Box<Result<ParsedCache, String>>,
     },
     /// Navigate to another page.
     RedirectToPage(crate::app::RedirectInfo),
@@ -84,6 +91,7 @@ impl ViewPage {
                 feed_hash: String::new(),
                 selected_follow: None,
                 info_expanded: true,
+                loading_archive: false,
             },
             feed_task.map(Message::Feed),
         )
@@ -110,7 +118,7 @@ impl ViewPage {
                 Task::batch([
                     reset_task,
                     Task::perform(
-                        download_and_parse_twtxt("unknown".into(), url.clone(), false),
+                        download_and_parse_twtxt("unknown".into(), url.clone(), None, false),
                         move |result| Message::FeedLoaded {
                             url,
                             result: Box::new(result),
@@ -168,6 +176,91 @@ impl ViewPage {
 
                 self.pending_downloads -= 1;
                 Task::none()
+            }
+
+            Message::LoadArchive => {
+                if let Some(meta) = &self.metadata
+                    && let Some(prev) = &meta.prev
+                {
+                    self.loading_archive = true;
+                    self.pending_downloads += 1;
+
+                    let url = if let Ok(base) = url::Url::parse(&self.composer) {
+                        match base.join(&prev.url) {
+                            Ok(joined) => joined.to_string(),
+                            Err(_) => prev.url.clone(),
+                        }
+                    } else {
+                        prev.url.clone()
+                    };
+
+                    return Task::perform(
+                        download_and_parse_twtxt(
+                            "archive".into(),
+                            url,
+                            Some(self.composer.clone()),
+                            false,
+                        ),
+                        |result| Message::ArchiveLoaded {
+                            result: Box::new(result),
+                        },
+                    );
+                }
+
+                Task::none()
+            }
+
+            Message::ArchiveLoaded { result } => {
+                self.pending_downloads -= 1;
+                self.loading_archive = false;
+
+                let Ok(mut parsed) = *result else {
+                    error!("Failed to load archive feed");
+                    return Task::none();
+                };
+
+                for tweet in &mut parsed.bundle.tweets {
+                    tweet.feed_hash = self.feed_hash.clone();
+                }
+
+                self.tweets.extend(parsed.bundle.tweets);
+                self.tweets.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
+                self.thread_tree = build_threads(&self.tweets);
+
+                let feed_task = self
+                    .feed
+                    .reset(&self.thread_tree, &self.tweets)
+                    .map(Message::Feed);
+
+                let chain_task = if let Some(prev) = parsed.bundle.metadata.and_then(|m| m.prev) {
+                    self.loading_archive = true;
+                    self.pending_downloads += 1;
+
+                    let url = if let Ok(base) = url::Url::parse(&self.composer) {
+                        match base.join(&prev.url) {
+                            Ok(joined) => joined.to_string(),
+                            Err(_) => prev.url.clone(),
+                        }
+                    } else {
+                        prev.url.clone()
+                    };
+
+                    Task::perform(
+                        download_and_parse_twtxt(
+                            "archive".into(),
+                            url,
+                            Some(self.composer.clone()),
+                            false,
+                        ),
+                        |result| Message::ArchiveLoaded {
+                            result: Box::new(result),
+                        },
+                    )
+                } else {
+                    Task::none()
+                };
+
+                Task::batch([feed_task, chain_task])
             }
 
             Message::LinkClicked(url) => {
@@ -310,7 +403,10 @@ impl ViewPage {
                     .into()
             };
 
-        let timeline = self.feed.view(theme, &self.tweets).map(Message::Feed);
+        let timeline = self
+            .feed
+            .view(theme, &self.tweets, false)
+            .map(Message::Feed);
 
         // Links row
         let mut links_row: Row<Message> = row!().spacing(4);
@@ -325,6 +421,29 @@ impl ViewPage {
                 .on_link_click(Message::LinkClicked),
             );
         }
+
+        // Archive button
+        let archive_button: Element<_> = if let Some(meta) = &self.metadata {
+            if meta.prev.is_some() {
+                button(if self.loading_archive {
+                    "Loading..."
+                } else {
+                    "Load older posts"
+                })
+                .on_press_maybe(if self.loading_archive {
+                    None
+                } else {
+                    Some(Message::LoadArchive)
+                })
+                .padding([8, 16])
+                .style(sec_button_style)
+                .into()
+            } else {
+                space().into()
+            }
+        } else {
+            space().into()
+        };
 
         let info: Element<_> = if self.info_expanded {
             container(
@@ -362,6 +481,7 @@ impl ViewPage {
                     .align_y(Alignment::Start),
                     row![
                         space().width(Length::Fill),
+                        archive_button,
                         button("Collapse")
                             .on_press(Message::CollapsePressed)
                             .padding([8, 16])

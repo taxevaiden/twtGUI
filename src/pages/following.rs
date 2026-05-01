@@ -2,7 +2,7 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{button, column, row, text, text_input},
+    widget::{button, column, row, scrollable, text, text_input},
 };
 
 use crate::{config::AppConfig, utils::Link};
@@ -187,6 +187,11 @@ impl FollowingPage {
         ]
         .spacing(8);
 
-        column![add_section, list].spacing(8).into()
+        column![
+            add_section,
+            scrollable(list).height(Length::Fill).spacing(8)
+        ]
+        .spacing(8)
+        .into()
     }
 }

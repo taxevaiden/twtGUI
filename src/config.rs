@@ -60,8 +60,8 @@ theme_choices! {
     CatppuccinFrappe => "Catppuccin Frappe",
     CatppuccinMacchiato => "Catppuccin Macchiato",
     CatppuccinLatte => "Catppuccin Latte",
-    GruvboxDark => "Gruvbox Dark",
     GruvboxLight => "Gruvbox Light",
+    GruvboxDark => "Gruvbox Dark",
     GruvboxSystem => "Gruvbox System",
 }
 
@@ -70,6 +70,11 @@ impl Default for ThemeChoice {
     fn default() -> Self {
         ThemeChoice::CatppuccinMocha
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Appearance {
+    pub theme: ThemeChoice,
 }
 
 /// Top-level application configuration stored in `config.toml`.
@@ -85,8 +90,8 @@ pub struct AppConfig {
     /// Persisted file paths used by the application.
     pub paths: AppFilePaths,
 
-    /// The theme to use for the application.
-    pub theme: ThemeChoice,
+    /// The appearance settings for the application.
+    pub appearance: Appearance,
 }
 
 /// Paths to files that are used or created by the application.
@@ -110,6 +115,9 @@ pub struct AppFilePaths {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            appearance: Appearance {
+                theme: ThemeChoice::default(),
+            },
             metadata: Metadata {
                 urls: Vec::new(),
                 nick: None,
@@ -119,7 +127,7 @@ impl Default for AppConfig {
                 follows: Vec::new(),
                 following: None,
                 links: Vec::new(),
-                prev: Vec::new(),
+                prev: None,
                 refresh: None,
             },
             paths: AppFilePaths {
@@ -128,7 +136,6 @@ impl Default for AppConfig {
                 tweet_script: None,
                 post_tweet_script: None,
             },
-            theme: ThemeChoice::default(),
         }
     }
 }
@@ -231,15 +238,8 @@ impl AppConfig {
                     .collect(),
             );
         }
-        if !self.metadata.prev.is_empty() {
-            known_map.insert(
-                "prev",
-                self.metadata
-                    .prev
-                    .iter()
-                    .map(|l| format!("{} {}", l.text, l.url))
-                    .collect(),
-            );
+        if let Some(prev) = &self.metadata.prev {
+            known_map.insert("prev", vec![format!("{} {}", prev.text, prev.url)]);
         }
         if let Some(refresh) = &self.metadata.refresh {
             known_map.insert("refresh", vec![refresh.to_string()]);
@@ -258,8 +258,6 @@ impl AppConfig {
                     .push(line.clone());
             } else if trimmed.starts_with("link ") {
                 special_lines.entry("link").or_default().push(line.clone());
-            } else if trimmed.starts_with("prev ") {
-                special_lines.entry("prev").or_default().push(line.clone());
             } else {
                 other_lines.push(line.clone());
             }
@@ -280,7 +278,7 @@ impl AppConfig {
             }
         }
 
-        // sync all fields that are vecs (follows, links, prevs)
+        // sync all fields that are vecs (follows, links)
         let follow_set: HashSet<String> = self
             .metadata
             .follows
@@ -296,14 +294,6 @@ impl AppConfig {
             .map(|l| format!("link = {} {}", l.text, l.url))
             .collect();
         sync_special(special_lines.entry("link").or_default(), &link_set);
-
-        let prev_set: HashSet<String> = self
-            .metadata
-            .prev
-            .iter()
-            .map(|l| format!("prev = {} {}", l.text, l.url))
-            .collect();
-        sync_special(special_lines.entry("prev").or_default(), &prev_set);
 
         let mut used_keys: HashSet<String> = HashSet::new();
         let mut updated_other_lines = Vec::new();
@@ -324,7 +314,7 @@ impl AppConfig {
             updated_other_lines.push(line);
         }
 
-        // prepend missing known metadata (except follow/link/prev)
+        // prepend missing known metadata (except follow/link)
         let keys_order = [
             "nick",
             "description",
@@ -332,6 +322,7 @@ impl AppConfig {
             "kind",
             "url",
             "following",
+            "prev",
             "refresh",
         ];
 
@@ -352,9 +343,6 @@ impl AppConfig {
         }
         if let Some(l) = special_lines.get("link") {
             final_lines.extend(l.clone());
-        }
-        if let Some(p) = special_lines.get("prev") {
-            final_lines.extend(p.clone());
         }
 
         final_lines.extend(existing_tweets);

@@ -7,6 +7,7 @@ mod components;
 mod config;
 mod logging;
 mod pages;
+mod twtxt;
 mod utils;
 
 use app::TwtxtApp;
@@ -56,7 +57,6 @@ fn main() -> iced::Result {
             titlebar_transparent: true,
             #[cfg(target_os = "macos")]
             fullsize_content_view: true,
-            ..Default::default()
         },
         ..Default::default()
     })

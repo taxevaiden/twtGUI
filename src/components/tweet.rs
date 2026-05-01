@@ -104,6 +104,7 @@ impl TweetComponent {
         theme: &Theme,
         tweets: &'a [Tweet],
         avatars: &'a HashMap<String, Handle>,
+        reply_available: bool,
     ) -> Element<'a, Message> {
         let tweet = &tweets[self.index];
 
@@ -196,32 +197,34 @@ impl TweetComponent {
             images_col = images_col.push(image);
         }
 
-        let reply_button = button("Reply")
-            .style(sec_button_style)
-            .padding([8.0, 16.0])
-            .on_press(Message::ReplyClicked(self.index));
-        let thread_button = button("Thread")
-            .style(sec_button_style)
-            .padding([8.0, 16.0])
-            .on_press(Message::ThreadClicked(self.index));
+        let reply_button: Element<Message> = if reply_available {
+            button("Reply")
+                .style(sec_button_style)
+                .padding([8.0, 16.0])
+                .on_press(Message::ReplyClicked(self.index))
+                .into()
+        } else {
+            space().into()
+        };
 
         column![
-            row![
-                avatar_img,
-                column![
-                    header,
-                    container(content),
-                    images_col,
-                    space().height(4),
-                    row![reply_button, thread_button].spacing(8)
+            button(
+                row![
+                    avatar_img,
+                    column![header, container(content), images_col,]
+                        .padding([6.0, 0.0])
+                        .spacing(4)
                 ]
-                .padding([6.0, 0.0])
-                .spacing(4)
-            ]
-            .spacing(12),
+                .spacing(12),
+            )
+            .on_press(Message::ThreadClicked(self.index))
+            .width(Length::Fill)
+            .padding(16)
+            .style(sec_button_style),
+            reply_button
         ]
         .spacing(8)
-        .padding(4)
+        .width(Length::Fill)
         .into()
     }
 }

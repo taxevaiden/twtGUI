@@ -4,9 +4,10 @@
 
 use crate::components::tweet::{self, TweetComponent};
 use crate::utils::{Tweet, TweetNode};
+use iced::widget::rule::horizontal;
 use iced::{
     Element, Length, Task, Theme,
-    widget::{Column, Id, button, column, container, image::Handle, row, scrollable, space},
+    widget::{Column, Id, button, column, image::Handle, row, scrollable, space},
 };
 use std::collections::HashMap;
 use tracing::error;
@@ -18,7 +19,7 @@ const INITIAL_LOAD: usize = 25;
 /// How close to the bottom of the scroll before loading more threads.
 const LOAD_THRESHOLD: f32 = 400.0;
 /// How close to the top of the scroll to reset to the initial load size.
-const TOP_THRESHOLD: f32 = 10.0;
+const TOP_THRESHOLD: f32 = 50.0;
 
 /// A memoized thread node with its rendered component and child threads.
 struct BuiltNode {
@@ -94,31 +95,50 @@ impl LazyThreadedFeed {
     }
 
     pub fn reset(&mut self, threads: &[TweetNode], tweets: &[Tweet]) -> Task<Message> {
-        let (built, task) = build_nodes(threads, tweets);
-        self.node_index = build_index(&built);
         self.source_threads = threads.to_vec();
-        self.built_threads = built;
-        self.visible_threads_count = INITIAL_LOAD.min(self.built_threads.len());
+        self.built_threads = Vec::new();
+        self.visible_threads_count = INITIAL_LOAD.min(threads.len());
         self.thread_stack.clear();
+
+        let (built, task) = build_nodes(&self.source_threads[..self.visible_threads_count], tweets);
+        self.node_index = build_index(&built);
+        self.built_threads = built;
         task
     }
 
     pub fn update(&mut self, message: Message, tweets: &[Tweet]) -> Task<Message> {
-        let total = self.built_threads.len();
         match message {
             Message::Scrolled(viewport) => {
                 let offset = viewport.absolute_offset().y;
                 let visible_height = viewport.bounds().height;
                 let total_height = viewport.content_bounds().height;
+                let total = self.source_threads.len();
 
                 if offset <= TOP_THRESHOLD {
-                    self.visible_threads_count = INITIAL_LOAD.min(total);
+                    let new_count = INITIAL_LOAD.min(total);
+                    if self.built_threads.len() > new_count {
+                        self.built_threads.truncate(new_count);
+                        self.node_index = build_index(&self.built_threads);
+                    }
+                    self.visible_threads_count = new_count;
                 }
 
                 let near_bottom = offset + visible_height >= total_height - LOAD_THRESHOLD;
                 if near_bottom && self.visible_threads_count < total {
+                    let old_count = self.built_threads.len();
                     self.visible_threads_count =
                         (self.visible_threads_count + BATCH_SIZE).min(total);
+
+                    // Build only the newly revealed threads
+                    if self.visible_threads_count > old_count {
+                        let (new_nodes, task) = build_nodes(
+                            &self.source_threads[old_count..self.visible_threads_count],
+                            tweets,
+                        );
+                        self.built_threads.extend(new_nodes);
+                        self.node_index = build_index(&self.built_threads);
+                        return task;
+                    }
                 }
 
                 Task::none()
@@ -207,15 +227,19 @@ impl LazyThreadedFeed {
         }
     }
 
-    pub fn view<'a>(&'a self, theme: &Theme, tweets: &'a [Tweet]) -> Element<'a, Message> {
-        let visible =
-            &self.built_threads[..self.visible_threads_count.min(self.built_threads.len())];
+    pub fn view<'a>(
+        &'a self,
+        theme: &Theme,
+        tweets: &'a [Tweet],
+        reply_available: bool,
+    ) -> Element<'a, Message> {
+        let visible = &self.built_threads;
 
         let mut col = column!().spacing(8);
 
         if !self.thread_stack.is_empty() {
             col = col.push(
-                button("← Back")
+                button("Back")
                     .on_press(Message::ThreadBack)
                     .padding([8.0, 16.0]),
             );
@@ -223,9 +247,13 @@ impl LazyThreadedFeed {
 
         for node in visible {
             col = col.push(
-                container(render_built_node(theme, node, tweets, &self.avatars))
-                    .width(Length::Fill)
-                    .padding(12.0),
+                column![
+                    render_built_node(theme, node, tweets, &self.avatars, reply_available),
+                    horizontal(1),
+                ]
+                .width(Length::Fill)
+                .padding(8.0)
+                .spacing(16.0),
             );
         }
 
@@ -330,11 +358,12 @@ fn render_built_node<'a>(
     node: &'a BuiltNode,
     tweets: &'a [Tweet],
     avatars: &'a HashMap<String, Handle>,
+    reply_available: bool,
 ) -> Column<'a, Message> {
     let index = node.component.index;
     let tweet_view = node
         .component
-        .view(theme, tweets, avatars)
+        .view(theme, tweets, avatars, reply_available)
         .map(move |msg| Message::Tweet(index, msg));
 
     let mut thread_col = column![tweet_view].spacing(8);
@@ -342,7 +371,7 @@ fn render_built_node<'a>(
     for child in &node.children {
         let indented = row![
             space().width(32),
-            render_built_node(theme, child, tweets, avatars)
+            render_built_node(theme, child, tweets, avatars, reply_available)
         ];
         thread_col = thread_col.push(indented);
     }

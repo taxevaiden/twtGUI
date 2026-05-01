@@ -1,25 +1,17 @@
 //! A page that displays the user's timeline and allows composing new tweets.
 
 use bytes::Bytes;
-use chrono::Utc;
 use iced::{
     Alignment, Element, Length, Task, Theme,
-    widget::{button, column, image::Handle, markdown, row, text, text_editor},
+    widget::{Stack, button, column, container, image::Handle, row, space, text, text_editor},
 };
 
-use std::io::Write;
-use std::{fs::OpenOptions, io::Read};
 use tracing::{error, info};
 
-use crate::utils::{
-    FeedBundle, ParsedCache, Tweet, TweetNode, build_threads, compute_twt_hash,
-    download_and_parse_twtxt, download_binary, parse_metadata, parse_tweets, parse_twt_contents,
-};
-use crate::{
-    components::threaded_feed::{self, LazyThreadedFeed},
-    utils::run_script,
-};
-use crate::{config::AppConfig, utils::hash::hash_sha256_str};
+use crate::components::threaded_feed::{self, LazyThreadedFeed};
+use crate::config::AppConfig;
+use crate::twtxt::{compose_twtxt_tweet, download_and_parse_feed, load_local_twtxt_feed};
+use crate::utils::{ParsedCache, Tweet, TweetNode, build_threads, download_binary};
 
 /// The state for the timeline page.
 ///
@@ -103,7 +95,7 @@ impl TimelinePage {
 
             Message::PostPressed => {
                 self.show_composer = false;
-                self.send_tweet(config)
+                self.post_composed_tweet(config)
             }
 
             Message::Refresh => {
@@ -115,25 +107,8 @@ impl TimelinePage {
                 let mut tasks = Vec::new();
 
                 // handle local file
-                let path = std::path::Path::new(&config.paths.twtxt);
-
-                if let Ok(content) = std::fs::read_to_string(path) {
-                    let nick = config.metadata.nick.clone().unwrap_or_default();
-
-                    let url = config.metadata.urls.first().cloned().unwrap_or_default();
-
-                    let bundle = FeedBundle {
-                        metadata: parse_metadata(&content),
-                        tweets: parse_tweets(&nick, &url, &content),
-                    };
-
-                    let content_hash = hash_sha256_str(&content);
-
-                    let parsed = ParsedCache {
-                        bundle,
-                        content_hash,
-                    };
-
+                if let Some((nick, url, parsed)) = load_local_twtxt_feed(config) {
+                    self.local_hash = Some(parsed.content_hash.clone());
                     tasks.push(Task::done(Message::FeedLoaded {
                         nick,
                         url,
@@ -149,7 +124,12 @@ impl TimelinePage {
                     let follow_url = link.url.clone();
 
                     tasks.push(Task::perform(
-                        download_and_parse_twtxt(follow_nick.clone(), follow_url.clone(), true),
+                        download_and_parse_feed(
+                            follow_nick.clone(),
+                            follow_url.clone(),
+                            None,
+                            true,
+                        ),
                         move |result| Message::FeedLoaded {
                             nick: follow_nick.clone(),
                             url: follow_url.clone(),
@@ -214,15 +194,16 @@ impl TimelinePage {
             }
 
             Message::Feed(threaded_feed::Message::ReplyClicked(index)) => {
-                let tweet = self.tweets.get(index).cloned().unwrap(); // TODO: Implement default for safe unwrapping
-                let hash = tweet.hash;
-                let author = tweet.author;
-                let source = tweet.url;
+                if let Some(tweet) = self.tweets.get(index).cloned() {
+                    let hash = tweet.hash;
+                    let author = tweet.author;
+                    let source = tweet.url;
 
-                self.show_composer = true;
-                self.composer = text_editor::Content::with_text(
-                    format!("(#{}) @<{} {}> ", hash, author, source).as_str(),
-                );
+                    self.show_composer = true;
+                    self.composer = text_editor::Content::with_text(
+                        format!("(#{}) @<{} {}> ", hash, author, source).as_str(),
+                    );
+                }
 
                 Task::none()
             }
@@ -252,70 +233,16 @@ impl TimelinePage {
         Task::none()
     }
 
-    fn send_tweet(&mut self, config: &AppConfig) -> Task<Message> {
-        if let Some(path) = &config.paths.pre_tweet_script {
-            run_script(path, &[]).ok();
-        }
-
+    fn post_composed_tweet(&mut self, config: &AppConfig) -> Task<Message> {
         let composer_text = self.composer.text();
 
-        if composer_text.trim().is_empty() {
-            return Task::none();
-        }
-
-        let Some(nick) = config.metadata.nick.clone() else {
-            return Task::none();
-        };
-
-        let now = Utc::now();
-
-        let (reply_to, display_content) = parse_twt_contents(&composer_text);
-        let url = config.metadata.urls.first().cloned().unwrap_or_default();
-        let timestamp_str = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-
-        let written = composer_text.replace("\n", "\\u2028");
-
-        let feed_hash = if let Some(hash) = &self.local_hash {
-            hash.clone()
+        if let Some(tweet) = compose_twtxt_tweet(&composer_text, config, self.local_hash.clone()) {
+            self.tweets.insert(0, tweet);
+            self.composer = text_editor::Content::new();
+            self.sort_and_refresh()
         } else {
-            let mut file = OpenOptions::new()
-                .read(true)
-                .open(&config.paths.twtxt)
-                .unwrap();
-            let mut contents = String::new();
-            file.read_to_string(&mut contents).ok();
-            hash_sha256_str(&contents)
-        };
-
-        let new_tweet = Tweet {
-            hash: compute_twt_hash(&url, &timestamp_str, &written),
-            reply_to,
-            timestamp: now,
-            author: nick,
-            url,
-            content: display_content.clone(),
-            feed_hash,
-            md_items: markdown::parse(&display_content).collect(),
-        };
-
-        if let Some(path) = &config.paths.tweet_script {
-            run_script(path, &[&written]).ok();
-        } else if let Ok(mut file) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&config.paths.twtxt)
-        {
-            let _ = writeln!(file, "{}\t{}", timestamp_str, written);
+            Task::none()
         }
-
-        self.tweets.insert(0, new_tweet);
-        self.composer = text_editor::Content::new();
-
-        if let Some(path) = &config.paths.post_tweet_script {
-            run_script(path, &[]).ok();
-        }
-
-        self.sort_and_refresh()
     }
 
     pub fn view(&self, theme: &Theme) -> Element<'_, Message> {
@@ -336,17 +263,24 @@ impl TimelinePage {
             })
             .padding([8, 16]);
 
-        let mut col = column!().spacing(8);
+        let toolbar = row![compose_button, refresh_button].spacing(8);
 
-        col = col.push(row![compose_button, refresh_button].spacing(8));
+        let feed = self.feed.view(theme, &self.tweets, true).map(Message::Feed);
+
+        let base = column![toolbar, feed]
+            .spacing(8)
+            .width(Length::Fill)
+            .height(Length::Fill);
+
+        let stack = Stack::new().push(base);
 
         if self.show_composer {
-            col = col.push(
+            let composer_sheet = container(
                 column![
                     text_editor(&self.composer)
                         .placeholder("What's on your mind?")
                         .on_action(Message::ComposerEdit)
-                        .height(Length::Fill)
+                        .height(300)
                         .padding(8),
                     row![
                         button(text("Post").align_x(Alignment::Center).width(Length::Fill))
@@ -362,17 +296,27 @@ impl TimelinePage {
                         .width(Length::Fill)
                         .padding([8, 16]),
                     ]
-                    .width(Length::Fill)
                     .spacing(8)
+                    .width(Length::Fill),
                 ]
                 .spacing(8),
-            );
-        } else if self.pending_downloads == 0 {
-            let scroll = self.feed.view(theme, &self.tweets).map(Message::Feed);
+            )
+            .width(Length::Fill)
+            .height(Length::Shrink);
 
-            col = col.push(scroll);
+            stack
+                .push(
+                    column![
+                        space().height(40),
+                        composer_sheet,
+                        space().height(Length::Fill)
+                    ]
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+                )
+                .into()
+        } else {
+            stack.into()
         }
-
-        col.width(Length::Fill).height(Length::Fill).into()
     }
 }

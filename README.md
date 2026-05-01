@@ -4,7 +4,7 @@
 
 <h1 align="center">twtGUI</h1>
 
-<p align="center">A graphical twtxt client built with Rust + Iced</p>
+<p align="center">A graphical client for twtxt, a decentralized microblogging protocol based on plain text files.</p>
 
 <p align="center">
   <img width="600" alt="The twtGUI client" src="./assets/client.png">
@@ -26,7 +26,7 @@ This client supports every desktop operating system (Windows, macOS, Linux). You
 
 If you encounter any issues, [please open a bug report!](https://github.com/taxevaiden/twtGUI/issues/new?template=bug_report.yml)
 
-If you want to see a new feature or improvement, [please open a feature request!](https://github.com/taxevaiden/twtGUI/issues/new?template=feature_request.yml)
+If you want to see a new feature or an improvement, [please open a feature request!](https://github.com/taxevaiden/twtGUI/issues/new?template=feature_request.yml)
 
 ## Building
 
@@ -37,7 +37,14 @@ You will need the following prerequisites:
 
 You can install both of these through [Rustup.](https://rustup.rs/)
 
-After installing, simply clone this repository and run `cargo run` (or `cargo run --release` for a release build, which takes longer to compile but is much faster) in the root directory. Cargo should automatically install any dependencies.
+After installing, simply clone this repository and run twtGUI:
+
+    git clone https://github.com/taxevaiden/twtGUI
+    cd twtGUI
+    cargo run            # debug build
+    cargo run --release  # optimized build (slower to compile, faster to run)
+
+Cargo should automatically install any dependencies.
 
 ## Contributing
 
@@ -47,12 +54,13 @@ Please refer to [CONTRIBUTING.md.](CONTRIBUTING.md)
 
 - Tweeting markdown-formatted posts
 - Fetching viewing, and following feeds
-- **Most** of the [twtxt v2 specification](https://twtxt.dev)
+- The [twtxt v2 specification](https://twtxt.dev)
   - [Mentions](https://twtxt.dev/#mentions-and-threads:~:text=Mentions%20in%20the,a%20Twtxt%20URI.)
   - [Twt Hash Extension](https://twtxt.dev/exts/twt-hash.html)
   - [Twt Subject Extension](https://twtxt.dev/exts/twt-subject.html)
   - [Multiline Extension](https://twtxt.dev/exts/multiline.html)
   - [Metadata Extension](https://twtxt.dev/exts/metadata.html)
+  - [Archive Feeds Extension](https://twtxt.dev/exts/archive-feeds.html)
 
 If you're someone whose `twtxt.txt` only follows the twtxt v1 specification, this client's great for you!
 
@@ -75,12 +83,30 @@ If you need to edit `config.toml`, you can find it in your system’s configurat
 | macOS    | `/Users/yourname/Library/Application Support/com.taxevaiden.twtGUI/config.toml` |
 | Linux    | `/home/yourname/.config/twtgui/config.toml` |
 
-The configuration file is divided into two main sections:
+The configuration file is divided into three main sections:
 
+- `[appearance]`
 - `[metadata]`
 - `[paths]`
 
 ---
+
+### `[appearance]`
+
+Contains settings for the appearance of twtGUI.
+
+- `theme`
+  The UI theme. You won't usually need to set this theme, as there is a theme-switcher built into twtGUI. Accepted values:
+  - `light` - Light
+  - `dark` - Dark
+  - `system` - Light or Dark, depends on system theme
+  - `catppuccinmocha` - Catppuccin Mocha **(default)**
+  - `catppuccinfrappe` - Catppuccin Frappe
+  - `catppuccinmacchiato` - Catppuccin Macchiato
+  - `catppuccinlatte` - Catppuccin Latte
+  - `gruvboxlight` - Gruvbox Light
+  - `gruvboxdark` - Gruvbox Dark
+  - `gruvboxsystem` - Gruvbox Light or Dark, depends on system theme
 
 ### `[metadata]`
 
@@ -212,4 +238,4 @@ Script files should be in `.bat` format on Windows, and in `.sh` format on Unix-
 
 twtGUI is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-twtGUI uses the Iosevka font familiy, which is licensed under the SIL Open Font License. See the [Iosevka](https://github.com/be5invis/Iosevka) repository for details.
+twtGUI uses the Iosevka font family, which is licensed under the SIL Open Font License. See the [Iosevka](https://github.com/be5invis/Iosevka) repository for details.
