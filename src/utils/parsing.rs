@@ -90,19 +90,19 @@ fn autolink_urls(text: &str) -> String {
         // Autolink image URLs as ![](url) and other URLs as [](url)
         if parsed_url
             .as_ref()
-            .map_or(false, |u| u.path().ends_with(".png"))
+            .is_some_and(|u| u.path().ends_with(".png"))
             || parsed_url
                 .as_ref()
-                .map_or(false, |u| u.path().ends_with(".jpg"))
+                .is_some_and(|u| u.path().ends_with(".jpg"))
             || parsed_url
                 .as_ref()
-                .map_or(false, |u| u.path().ends_with(".jpeg"))
+                .is_some_and(|u| u.path().ends_with(".jpeg"))
             || parsed_url
                 .as_ref()
-                .map_or(false, |u| u.path().ends_with(".webp"))
+                .is_some_and(|u| u.path().ends_with(".webp"))
             || parsed_url
                 .as_ref()
-                .map_or(false, |u| u.path().ends_with(".gif"))
+                .is_some_and(|u| u.path().ends_with(".gif"))
         {
             result.push_str(&format!("![{}]({})", matched, matched));
         } else {
