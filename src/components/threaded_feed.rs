@@ -255,7 +255,7 @@ impl LazyThreadedFeed {
                     horizontal(1),
                 ]
                 .width(Length::Fill)
-                .spacing(16.0),
+                .spacing(8),
             );
         }
 

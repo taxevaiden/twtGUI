@@ -2,20 +2,43 @@
 //!
 //! This module focuses on parsing the raw twtxt text.
 
+use std::sync::OnceLock;
+
 use crate::utils::{Link, Metadata, Tweet, compute_twt_hash, hash::hash_sha256_str};
 use chrono::{DateTime, Utc};
 use iced::widget::markdown;
 use regex::Regex;
+use url::Url;
+
+static SUBJECT_RE: OnceLock<Regex> = OnceLock::new();
+static MENTION_RE: OnceLock<Regex> = OnceLock::new();
+static URL_RE: OnceLock<Regex> = OnceLock::new();
+
+fn get_subject_re() -> &'static Regex {
+    SUBJECT_RE.get_or_init(|| Regex::new(r"^\(#(?P<hash>[a-z0-9]{7,12})\)\s*").unwrap())
+}
+
+fn get_mention_re() -> &'static Regex {
+    MENTION_RE.get_or_init(|| Regex::new(r"@<(?P<nick>[^\s>]+)(?:\s+(?P<url>[^>]+))?>").unwrap())
+}
+
+fn get_url_re() -> &'static Regex {
+    URL_RE.get_or_init(|| {
+        Regex::new(r"!?\[[^\]]*\]\([^)]*\)|\([^)]*\)|https?:\/\/[^\s<>()\[\]]+").unwrap()
+    })
+}
 
 /// Parses a single tweet line, extracting a reply hash and converting mentions to markdown.
 ///
 /// Returns a tuple of `(reply_to_hash, markdown_content)`.
 pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, String) {
-    let subject_re = Regex::new(r"^\(#(?P<hash>[a-z0-9]{7,12})\)\s*").unwrap();
-    let mention_re = Regex::new(r"@<(?P<nick>[^\s>]+)(?:\s+(?P<url>[^>]+))?>").unwrap();
+    let subject_re = get_subject_re();
+    let mention_re = get_mention_re();
 
     let mut reply_to = None;
-    let mut content = raw_content;
+
+    let preprocessed = raw_content.replace("\\u2028", "  \n").trim().to_string();
+    let mut content = preprocessed.as_str();
 
     // Check for a subject hash prefix (e.g. `(#abc123)`) and extract it as the reply hash
     if let Some(cap) = subject_re.captures(content) {
@@ -32,27 +55,64 @@ pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, String) {
     for cap in mention_re.captures_iter(content) {
         let m = cap.get(0).unwrap();
 
-        markdown_content.push_str(&content[last_end..m.start()]);
+        // Autolink bare URLs before doing any mention replacement
+        let segment = &content[last_end..m.start()];
+        markdown_content.push_str(&autolink_urls(segment));
 
         let nick = cap.name("nick").unwrap().as_str();
         let url = cap.name("url").map(|m| m.as_str()).unwrap_or(nick);
-
         markdown_content.push_str(&format!("[@{}]({})", nick, url));
 
         last_end = m.end();
     }
 
-    markdown_content.push_str(&content[last_end..]);
+    let tail = &content[last_end..];
+    markdown_content.push_str(&autolink_urls(tail));
 
-    // Multiline extension
-    // \u2028 is stored as its literal characters (e.g. hello\u2028world)
-    // so we can just replace it with a newline in markdown
-    let final_markdown = markdown_content
-        .replace("\\u2028", "  \n")
-        .trim()
-        .to_string();
+    (reply_to, markdown_content)
+}
 
-    (reply_to, final_markdown)
+fn autolink_urls(text: &str) -> String {
+    let url_re = get_url_re();
+
+    let mut result = String::new();
+    let mut last = 0;
+
+    for m in url_re.find_iter(text) {
+        let matched = m.as_str();
+        if !matched.starts_with("http") {
+            result.push_str(&text[last..m.end()]);
+            last = m.end();
+            continue;
+        }
+        result.push_str(&text[last..m.start()]);
+        let parsed_url = matched.parse::<Url>().ok();
+        // Autolink image URLs as ![](url) and other URLs as [](url)
+        if parsed_url
+            .as_ref()
+            .map_or(false, |u| u.path().ends_with(".png"))
+            || parsed_url
+                .as_ref()
+                .map_or(false, |u| u.path().ends_with(".jpg"))
+            || parsed_url
+                .as_ref()
+                .map_or(false, |u| u.path().ends_with(".jpeg"))
+            || parsed_url
+                .as_ref()
+                .map_or(false, |u| u.path().ends_with(".webp"))
+            || parsed_url
+                .as_ref()
+                .map_or(false, |u| u.path().ends_with(".gif"))
+        {
+            result.push_str(&format!("![{}]({})", matched, matched));
+        } else {
+            result.push_str(&format!("[{}]({})", matched, matched));
+        }
+        last = m.end();
+    }
+
+    result.push_str(&text[last..]);
+    result
 }
 
 /// Parses twtxt metadata headers (`# key = value`) from the given input.
@@ -150,6 +210,7 @@ pub fn parse_tweets(author: &str, url: &str, hash_url: Option<&str>, input: &str
         .filter(|line| !line.starts_with('#'))
         .filter_map(|line| {
             let (timestamp_str, raw_content) = line.split_once('\t')?;
+            let raw_content = raw_content.trim();
             let (reply_to, display_content) = parse_twt_contents(raw_content);
             let items = markdown::parse(&display_content).collect();
 
