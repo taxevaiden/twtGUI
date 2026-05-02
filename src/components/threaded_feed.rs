@@ -12,7 +12,7 @@ use iced::{
     widget::{Column, Id, button, column, image::Handle, row, scrollable, space},
 };
 use std::collections::HashMap;
-use tracing::error;
+use tracing::{debug, error};
 
 /// How many additional threads to load when reaching the bottom of the scroll.
 const BATCH_SIZE: usize = 10; // Threads can be large, so smaller batches are safer
@@ -169,8 +169,9 @@ impl LazyThreadedFeed {
                         content: url,
                     }))
                 } else {
+                    debug!("ThreadedFeed: opening URL: {}", url);
                     if let Err(err) = webbrowser::open(&url) {
-                        error!("Error opening URL: {}", err);
+                        error!("ThreadedFeed: error opening URL: {}", err);
                     }
                     Task::none()
                 }

@@ -6,6 +6,7 @@
 use crate::utils::FeedBundle;
 use bytes::Bytes;
 use iced::widget::markdown;
+use opengraph::{self, Object};
 use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use serde::{Deserialize, Serialize};
 
@@ -121,13 +122,13 @@ pub async fn download_binary(url: String) -> Result<Bytes, String> {
     Ok(data)
 }
 
-/// Downloads a `twtxt.txt` feed and caches it locally.
+/// Downloads a page/file as plain text and caches it locally.
 ///
-/// Uses HTTP `ETag`/`Last-Modified` headers to avoid re-downloading unchanged feeds.
-pub async fn download_twtxt(url: String) -> Result<String, String> {
+/// Uses HTTP `ETag`/`Last-Modified` headers to avoid re-downloading unchanged files.
+pub async fn download_text(url: String) -> Result<String, String> {
     let client = get_client();
 
-    debug!("Downloading twtxt.txt from {}", url);
+    debug!("Downloading text from {}", url);
 
     let cache_path = get_txt_cache_path(&url)?;
 
@@ -190,6 +191,13 @@ pub async fn download_twtxt(url: String) -> Result<String, String> {
     Ok(content)
 }
 
+pub async fn download_opengraph(url: String) -> Result<Object, String> {
+    let page = download_text(url.clone()).await?;
+    let obj = opengraph::extract(&mut page.to_string().as_bytes(), Default::default())
+        .map_err(|e| e.to_string())?;
+    Ok(obj)
+}
+
 /// Downloads a twtxt feed, parses it into a `ParsedCache`, and caches the parsed result.
 ///
 /// If the feed content has not changed since the last download, the previously parsed
@@ -207,7 +215,7 @@ pub async fn download_and_parse_twtxt(
     hash_url: Option<String>,
     use_nick: bool,
 ) -> Result<ParsedCache, String> {
-    let raw = download_twtxt(url.clone()).await?;
+    let raw = download_text(url.clone()).await?;
     let raw_hash = hash_sha256_str(&raw);
     let parsed_path = get_parsed_cache_path(&url)?;
 

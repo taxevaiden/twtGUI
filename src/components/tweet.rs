@@ -1,8 +1,13 @@
 //! A tweet renderer component, responsible for displaying a single tweet line.
 
-use crate::utils::{
-    Tweet, download_binary,
-    styling::{sec_button_style, secondary_text},
+use crate::{
+    components::og_embed::{self, OgEmbedComponent},
+    utils::{
+        Link, Tweet,
+        download::download_opengraph,
+        download_binary, is_file_url, parsing,
+        styling::{sec_button_style, secondary_text},
+    },
 };
 use bytes::Bytes;
 use chrono::Local;
@@ -16,11 +21,12 @@ use iced::{
         rich_text, row, space, span, text,
     },
 };
+use opengraph::Object;
 use tracing::error;
 
 use std::collections::HashMap;
 
-/// Messages used by the tweet component.
+/// Messages emitted by the tweet component.
 #[derive(Debug, Clone)]
 pub enum Message {
     /// A link inside the tweet markdown was clicked.
@@ -31,6 +37,9 @@ pub enum Message {
     ThreadClicked(usize),
     /// An image inside the tweet finished downloading.
     ImageLoaded(usize, Box<Result<Bytes, String>>), // usize = index into image_urls
+    /// An object was loaded from a URL's OpenGraph metadata.
+    OgObjectLoaded(usize, Box<Result<Object, String>>, String), // usize = index into urls
+    OgEmbed(usize, crate::components::og_embed::Message),
 }
 
 /// A widget that renders a single tweet, including inline images and avatar.
@@ -38,6 +47,8 @@ pub struct TweetComponent {
     pub index: usize,
     image_urls: Vec<String>,
     image_handles: Vec<Option<(Handle, u32, u32)>>,
+    og_objects: Vec<Option<Object>>,
+    og_embeds: Vec<Option<OgEmbedComponent>>,
 }
 
 impl TweetComponent {
@@ -45,8 +56,11 @@ impl TweetComponent {
         let tweet = &tweets[index];
         let image_urls = collect_image_urls(&tweet.md_items);
         let image_handles = vec![None; image_urls.len()];
+        let urls = collect_urls(&tweet.content);
+        let og_objects = vec![None; urls.len()];
+        let og_embeds = vec![None; urls.len()];
 
-        let tasks: Vec<Task<Message>> = image_urls
+        let img_tasks: Vec<Task<Message>> = image_urls
             .iter()
             .enumerate()
             .map(|(i, url)| {
@@ -57,11 +71,26 @@ impl TweetComponent {
             })
             .collect();
 
+        let url_tasks: Vec<Task<Message>> = urls
+            .iter()
+            .enumerate()
+            .map(|(i, url)| {
+                let url = url.clone();
+                Task::perform(download_opengraph(url.url.clone()), move |res| {
+                    Message::OgObjectLoaded(i, Box::new(res), url.url)
+                })
+            })
+            .collect();
+
+        let tasks = img_tasks.into_iter().chain(url_tasks).collect::<Vec<_>>();
+
         (
             Self {
                 index,
                 image_urls,
                 image_handles,
+                og_objects,
+                og_embeds,
             },
             Task::batch(tasks),
         )
@@ -88,13 +117,43 @@ impl TweetComponent {
                     }
                     Err(e) => {
                         error!(
-                            "Failed to load image {}: {}",
+                            "Tweet: failed to load image {}: {}",
                             self.image_urls.get(i).map(String::as_str).unwrap_or("?"),
                             e
                         );
                     }
                 }
                 Task::none()
+            }
+            Message::OgObjectLoaded(i, result, url) => {
+                match *result {
+                    Ok(obj) => {
+                        if i < self.og_objects.len() {
+                            self.og_objects[i] = Some(obj.clone());
+                        }
+                        if i < self.og_embeds.len() {
+                            let (embed, task) = OgEmbedComponent::new(&obj, &url);
+                            self.og_embeds[i] = Some(embed);
+                            return task.map(move |msg| Message::OgEmbed(i, msg));
+                        }
+                    }
+                    Err(e) => {
+                        error!("Tweet: failed to load OpenGraph object: {}", e);
+                    }
+                }
+                Task::none()
+            }
+            Message::OgEmbed(i, msg) => {
+                // Handle a link click by bubbling it up
+                if let og_embed::Message::Clicked(url) = &msg {
+                    return Task::done(Message::LinkClicked(url.clone()));
+                }
+                // Otherwise delegate to the embed component
+                if let Some(Some(embed)) = self.og_embeds.get_mut(i) {
+                    embed.update(msg).map(move |m| Message::OgEmbed(i, m))
+                } else {
+                    Task::none()
+                }
             }
         }
     }
@@ -116,7 +175,7 @@ impl TweetComponent {
                 Pixels(12.0),
                 markdown::Style {
                     font: crate::app::REGULAR_FONT,
-                    link_color: Color::from_rgb(0.4, 0.6, 1.0),
+                    link_color: theme.palette().primary,
                     inline_code_font: crate::app::MONOSPACE_FONT,
                     inline_code_color: Color::from_rgb(0.85, 0.85, 0.85),
                     inline_code_highlight: Highlight {
@@ -197,6 +256,14 @@ impl TweetComponent {
             images_col = images_col.push(image);
         }
 
+        let mut og_embeds_col = column![].spacing(6);
+        for (i, embed) in self.og_embeds.iter().enumerate() {
+            if let Some(embed) = embed {
+                og_embeds_col =
+                    og_embeds_col.push(embed.view(theme).map(move |msg| Message::OgEmbed(i, msg)));
+            }
+        }
+
         let reply_button: Element<Message> = if reply_available {
             button("Reply")
                 .style(sec_button_style)
@@ -211,7 +278,7 @@ impl TweetComponent {
             button(
                 row![
                     avatar_img,
-                    column![header, container(content), images_col,]
+                    column![header, container(content), images_col, og_embeds_col]
                         .padding([6.0, 0.0])
                         .spacing(4)
                 ]
@@ -245,4 +312,44 @@ fn collect_image_urls_into(items: &[markdown::Item], out: &mut Vec<String>) {
             _ => {}
         }
     }
+}
+
+fn collect_urls(text: &str) -> Vec<Link> {
+    let url_re = parsing::get_url_re();
+    let mut links = Vec::new();
+    for cap in url_re.captures_iter(text) {
+        if let Some(url) = cap.get(0) {
+            let m = url.as_str();
+
+            // Skip markdown images ![alt](url), feeds, and files
+            if m.starts_with('!') || m.contains("twtxt.txt") || is_file_url(m) {
+                continue;
+            }
+
+            // Extract URL from markdown hyperlink: [text](url)
+            if m.contains("](") {
+                let pair = m.split_once("](");
+                if let Some((label, url)) = pair {
+                    let url = url.trim_end_matches(')').to_string();
+                    if !url.starts_with("http://") && !url.starts_with("https://") {
+                        continue;
+                    }
+                    links.push(Link {
+                        text: label.trim_start_matches('[').to_string(),
+                        url,
+                    });
+                }
+            } else {
+                // Plain URL
+                if !m.starts_with("http://") && !m.starts_with("https://") {
+                    continue;
+                }
+                links.push(Link {
+                    text: m.to_string(),
+                    url: m.to_string(),
+                });
+            }
+        }
+    }
+    links
 }

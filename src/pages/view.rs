@@ -134,11 +134,11 @@ impl ViewPage {
                 self.pending_downloads -= 1;
 
                 let Ok(parsed) = *result else {
-                    error!("Error loading feed for {}", url);
+                    error!("View: error loading feed for {}", url);
                     return Task::none();
                 };
 
-                info!("Feed successfully loaded for {}", url);
+                info!("View: feed successfully loaded for {}", url);
                 self.metadata = parsed.bundle.metadata.clone();
                 self.tweets = parsed.bundle.tweets;
                 self.tweets.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
@@ -170,11 +170,11 @@ impl ViewPage {
 
             Message::AvatarLoaded { url, result, hash } => {
                 if let Ok(bytes) = *result {
-                    info!("Avatar successfully loaded for {}", url);
+                    info!("View: avatar successfully loaded for {}", url);
                     let handle = Handle::from_bytes(bytes);
                     self.feed.avatars.insert(hash, handle.clone());
                 } else if let Err(e) = *result {
-                    error!("Error loading avatar for {}: {}", url, e);
+                    error!("View: error loading avatar for {}: {}", url, e);
                 }
 
                 self.pending_downloads -= 1;
@@ -218,7 +218,7 @@ impl ViewPage {
                 self.loading_archive = false;
 
                 let Ok(mut parsed) = *result else {
-                    error!("Failed to load archive feed");
+                    error!("View: failed to load archive feed");
                     return Task::none();
                 };
 
@@ -419,7 +419,7 @@ impl ViewPage {
                     span(link.text.clone())
                         .link(link.url.clone())
                         .underline(true)
-                        .color(Color::from_rgb(0.4, 0.6, 1.0))
+                        .color(theme.palette().primary)
                 ]
                 .on_link_click(Message::LinkClicked),
             );

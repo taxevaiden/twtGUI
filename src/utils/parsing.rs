@@ -4,25 +4,24 @@
 
 use std::sync::OnceLock;
 
-use crate::utils::{Link, Metadata, Tweet, compute_twt_hash, hash::hash_sha256_str};
+use crate::utils::{Link, Metadata, Tweet, compute_twt_hash, hash::hash_sha256_str, is_image_url};
 use chrono::{DateTime, Utc};
 use iced::widget::markdown;
 use regex::Regex;
-use url::Url;
 
 static SUBJECT_RE: OnceLock<Regex> = OnceLock::new();
 static MENTION_RE: OnceLock<Regex> = OnceLock::new();
 static URL_RE: OnceLock<Regex> = OnceLock::new();
 
-fn get_subject_re() -> &'static Regex {
+pub fn get_subject_re() -> &'static Regex {
     SUBJECT_RE.get_or_init(|| Regex::new(r"^\(#(?P<hash>[a-z0-9]{7,12})\)\s*").unwrap())
 }
 
-fn get_mention_re() -> &'static Regex {
+pub fn get_mention_re() -> &'static Regex {
     MENTION_RE.get_or_init(|| Regex::new(r"@<(?P<nick>[^\s>]+)(?:\s+(?P<url>[^>]+))?>").unwrap())
 }
 
-fn get_url_re() -> &'static Regex {
+pub fn get_url_re() -> &'static Regex {
     URL_RE.get_or_init(|| {
         Regex::new(r"!?\[[^\]]*\]\([^)]*\)|\([^)]*\)|https?:\/\/[^\s<>()\[\]]+").unwrap()
     })
@@ -81,29 +80,26 @@ fn autolink_urls(text: &str) -> String {
     for m in url_re.find_iter(text) {
         let matched = m.as_str();
         if !matched.starts_with("http") {
+            if matched.starts_with("[") && matched.ends_with(")") && matched.contains("](") {
+                let pair = matched.split_once("](");
+                if let Some((label, url)) = pair {
+                    let url = url.trim_end_matches(')').to_string();
+                    if !url.starts_with("http://") && !url.starts_with("https://") {
+                        continue;
+                    }
+
+                    result.push_str(&format!("![{}]({})", label.trim_start_matches("["), url));
+                    last = m.end();
+                    continue;
+                }
+            }
             result.push_str(&text[last..m.end()]);
             last = m.end();
             continue;
         }
         result.push_str(&text[last..m.start()]);
-        let parsed_url = matched.parse::<Url>().ok();
         // Autolink image URLs as ![](url) and other URLs as [](url)
-        if parsed_url
-            .as_ref()
-            .is_some_and(|u| u.path().ends_with(".png"))
-            || parsed_url
-                .as_ref()
-                .is_some_and(|u| u.path().ends_with(".jpg"))
-            || parsed_url
-                .as_ref()
-                .is_some_and(|u| u.path().ends_with(".jpeg"))
-            || parsed_url
-                .as_ref()
-                .is_some_and(|u| u.path().ends_with(".webp"))
-            || parsed_url
-                .as_ref()
-                .is_some_and(|u| u.path().ends_with(".gif"))
-        {
+        if is_image_url(matched) {
             result.push_str(&format!("![{}]({})", matched, matched));
         } else {
             result.push_str(&format!("[{}]({})", matched, matched));

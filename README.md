@@ -96,7 +96,7 @@ The configuration file is divided into three main sections:
 Contains settings for the appearance of twtGUI.
 
 - `theme`
-  The UI theme. You won't usually need to set this theme, as there is a theme-switcher built into twtGUI. Accepted values:
+  The UI theme. You won't usually need to set this, as there is a theme-switcher built into twtGUI. Accepted values:
   - `light` - Light
   - `dark` - Dark
   - `system` - Light or Dark, depends on system theme

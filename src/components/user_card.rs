@@ -60,7 +60,7 @@ impl UserCard {
                     Task::none()
                 }
                 Err(e) => {
-                    error!("Failed to load image: {}", e);
+                    error!("UserCard: failed to load image: {}", e);
                     Task::none()
                 }
             },

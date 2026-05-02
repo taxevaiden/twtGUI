@@ -148,11 +148,11 @@ impl TimelinePage {
 
             Message::FeedLoaded { nick, url, result } => {
                 let Ok(parsed) = *result else {
-                    error!("Error loading feed for {} @ {}", nick, url);
+                    error!("Timeline: error loading feed for {} @ {}", nick, url);
                     return self.decrement_pending();
                 };
 
-                info!("Feed successfully loaded for {} @ {}", nick, url);
+                info!("Timeline: feed successfully loaded for {} @ {}", nick, url);
 
                 let content_hash = parsed.content_hash.clone();
                 let avatar_url = parsed
@@ -182,11 +182,11 @@ impl TimelinePage {
             Message::AvatarLoaded { url, result, hash } => {
                 match *result {
                     Ok(bytes) => {
-                        info!("Avatar successfully loaded for {}", url);
+                        info!("Timeline: avatar successfully loaded for {}", url);
                         self.feed.avatars.insert(hash, Handle::from_bytes(bytes));
                     }
                     Err(e) => {
-                        error!("Error loading avatar for {}: {}", url, e);
+                        error!("Timeline: error loading avatar for {}: {}", url, e);
                     }
                 }
                 self.decrement_pending()
