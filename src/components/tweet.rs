@@ -108,7 +108,7 @@ impl TweetComponent {
     ) -> Element<'a, Message> {
         let tweet = &tweets[self.index];
 
-        let code_bg = Color::from_rgba(0.0, 0.0, 0.0, 0.08);
+        let code_bg = Color::from_rgba(0.0, 0.0, 0.0, 0.55);
 
         let content = markdown::view(
             &tweet.md_items,

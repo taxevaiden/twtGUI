@@ -351,9 +351,9 @@ impl TwtxtApp {
             row![
                 nav,
                 container(content)
+                    .padding(8)
                     .height(Length::Fill)
                     .style(container_style)
-                    .padding(8)
             ]
             .spacing(8)
             .padding(8)

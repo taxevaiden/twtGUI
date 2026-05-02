@@ -17,7 +17,7 @@ Cargo should automatically install any dependencies.
 
 ## Before Contributing
 
-You should open an issue first before working on anything significant. Then, we can discuss whether it fits twtGUI's direction and prevent any conflicts with ongoing work.
+You should open an issue first before working on anything significant.
 
 For small changes (typos, minor bugs with obvious fixes, documentation), you can go straight to opening a pull request.
 

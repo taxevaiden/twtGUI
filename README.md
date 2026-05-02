@@ -48,7 +48,7 @@ Cargo should automatically install any dependencies.
 
 ## Contributing
 
-Please refer to [CONTRIBUTING.md.](CONTRIBUTING.md)
+See [CONTRIBUTING.md.](CONTRIBUTING.md)
 
 ## Features
 

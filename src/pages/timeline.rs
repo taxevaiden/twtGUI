@@ -8,10 +8,13 @@ use iced::{
 
 use tracing::{error, info};
 
-use crate::components::threaded_feed::{self, LazyThreadedFeed};
-use crate::config::AppConfig;
 use crate::twtxt::{compose_twtxt_tweet, download_and_parse_feed, load_local_twtxt_feed};
 use crate::utils::{ParsedCache, Tweet, TweetNode, build_threads, download_binary};
+use crate::{
+    components::threaded_feed::{self, LazyThreadedFeed},
+    utils::styling::toolbar_minput_style,
+};
+use crate::{config::AppConfig, utils::styling::toolbar_button_style};
 
 /// The state for the timeline page.
 ///
@@ -253,7 +256,8 @@ impl TimelinePage {
         )
         .on_press(Message::ToggleComposer)
         .width(Length::Fill)
-        .padding([8, 16]);
+        .padding([8, 16])
+        .style(toolbar_button_style);
 
         let refresh_button = button("Refresh")
             .on_press_maybe(if self.pending_downloads == 0 {
@@ -261,7 +265,8 @@ impl TimelinePage {
             } else {
                 None
             })
-            .padding([8, 16]);
+            .padding([8, 16])
+            .style(toolbar_button_style);
 
         let toolbar = row![compose_button, refresh_button].spacing(8);
 
@@ -281,12 +286,14 @@ impl TimelinePage {
                         .placeholder("What's on your mind?")
                         .on_action(Message::ComposerEdit)
                         .height(300)
-                        .padding(8),
+                        .padding(8)
+                        .style(toolbar_minput_style),
                     row![
                         button(text("Post").align_x(Alignment::Center).width(Length::Fill))
                             .on_press(Message::PostPressed)
                             .width(Length::Fill)
-                            .padding([8, 16]),
+                            .padding([8, 16])
+                            .style(toolbar_button_style),
                         button(
                             text("Cancel")
                                 .align_x(Alignment::Center)
@@ -294,7 +301,8 @@ impl TimelinePage {
                         )
                         .on_press(Message::CancelCompose)
                         .width(Length::Fill)
-                        .padding([8, 16]),
+                        .padding([8, 16])
+                        .style(toolbar_button_style),
                     ]
                     .spacing(8)
                     .width(Length::Fill),

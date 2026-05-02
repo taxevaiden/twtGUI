@@ -3,7 +3,9 @@
 //! Renders a subset of threads and loads more as the user scrolls.
 
 use crate::components::tweet::{self, TweetComponent};
+use crate::utils::styling::sec_button_style;
 use crate::utils::{Tweet, TweetNode};
+use iced::widget::container;
 use iced::widget::rule::horizontal;
 use iced::{
     Element, Length, Task, Theme,
@@ -241,7 +243,8 @@ impl LazyThreadedFeed {
             col = col.push(
                 button("Back")
                     .on_press(Message::ThreadBack)
-                    .padding([8.0, 16.0]),
+                    .padding([8.0, 16.0])
+                    .style(sec_button_style),
             );
         }
 
@@ -252,17 +255,20 @@ impl LazyThreadedFeed {
                     horizontal(1),
                 ]
                 .width(Length::Fill)
-                .padding(8.0)
                 .spacing(16.0),
             );
         }
 
-        scrollable(col)
-            .id(self.scroll_id.clone())
-            .spacing(8)
-            .on_scroll(Message::Scrolled)
-            .height(Length::Fill)
-            .into()
+        container(
+            scrollable(col)
+                .id(self.scroll_id.clone())
+                .spacing(8)
+                .on_scroll(Message::Scrolled)
+                .height(Length::Fill),
+        )
+        .padding(8)
+        .height(Length::Fill)
+        .into()
     }
 }
 

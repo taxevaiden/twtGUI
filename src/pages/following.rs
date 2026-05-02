@@ -5,7 +5,13 @@ use iced::{
     widget::{button, column, row, scrollable, text, text_input},
 };
 
-use crate::{config::AppConfig, utils::Link};
+use crate::{
+    config::AppConfig,
+    utils::{
+        Link,
+        styling::{toolbar_button_style, toolbar_sinput_style},
+    },
+};
 
 /// State for the following page.
 ///
@@ -113,16 +119,19 @@ impl FollowingPage {
                         text_input("Name", &self.edit_name)
                             .on_input(Message::EditNameChanged)
                             .width(Length::Fill)
-                            .padding(8),
+                            .padding(8)
+                            .style(toolbar_sinput_style),
                         text_input("URL", &self.edit_url)
                             .on_input(Message::EditUrlChanged)
                             .width(Length::FillPortion(2))
-                            .padding(8),
+                            .padding(8)
+                            .style(toolbar_sinput_style),
                         row![
                             button(text("Save").align_x(Alignment::Center).width(Length::Fill))
                                 .on_press(Message::SaveEdit)
                                 .width(Length::Fill)
-                                .padding([8, 16]),
+                                .padding([8, 16])
+                                .style(toolbar_button_style),
                             button(
                                 text("Cancel")
                                     .align_x(Alignment::Center)
@@ -130,7 +139,8 @@ impl FollowingPage {
                             )
                             .on_press(Message::CancelEdit)
                             .width(Length::Fill)
-                            .padding([8, 16]),
+                            .padding([8, 16])
+                            .style(toolbar_button_style),
                         ]
                         .width(Length::Fixed(175.0))
                         .spacing(8)
@@ -152,7 +162,8 @@ impl FollowingPage {
                             button(text("Edit").align_x(Alignment::Center).width(Length::Fill))
                                 .on_press(Message::EditPressed(name.clone()))
                                 .width(Length::Fill)
-                                .padding([8, 16]),
+                                .padding([8, 16])
+                                .style(toolbar_button_style),
                             button(
                                 text("Remove")
                                     .align_x(Alignment::Center)
@@ -160,7 +171,8 @@ impl FollowingPage {
                             )
                             .on_press(Message::RemovePressed(name.clone()))
                             .width(Length::Fill)
-                            .padding([8, 16]),
+                            .padding([8, 16])
+                            .style(toolbar_button_style),
                         ]
                         .width(Length::Fixed(175.0))
                         .spacing(8)
@@ -175,15 +187,18 @@ impl FollowingPage {
             text_input("Name", &self.new_name)
                 .on_input(Message::NameChanged)
                 .width(Length::Fill)
-                .padding(8),
+                .padding(8)
+                .style(toolbar_sinput_style),
             text_input("URL", &self.new_url)
                 .on_input(Message::UrlChanged)
                 .width(Length::FillPortion(2))
-                .padding(8),
+                .padding(8)
+                .style(toolbar_sinput_style),
             button(text("Add").align_x(Alignment::Center).width(Length::Fill))
                 .on_press(Message::AddPressed)
                 .width(Length::Fixed(175.0))
-                .padding([8, 16]),
+                .padding([8, 16])
+                .style(toolbar_button_style)
         ]
         .spacing(8);
 
