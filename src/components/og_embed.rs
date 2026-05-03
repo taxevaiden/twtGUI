@@ -1,7 +1,7 @@
 //! OpenGraph embed card component.
 
 use crate::utils::{
-    download_binary,
+    download::download_binary,
     styling::{prim_button_style, secondary_text},
 };
 use bytes::Bytes;
@@ -10,8 +10,8 @@ use iced::{
     widget::{Image, column, container, image::Handle, row, text},
 };
 use opengraph::Object;
+use reqwest::Url;
 use tracing::error;
-use url::Url;
 
 /// Messages emitted by the embed card component.
 #[derive(Debug, Clone)]
@@ -34,7 +34,7 @@ pub struct OgEmbedComponent {
 
 impl OgEmbedComponent {
     pub fn new(obj: &Object, url: &str) -> (Self, Task<Message>) {
-        let url = if obj.url.is_empty() {
+        let obj_url = if obj.url.is_empty() {
             url.to_string()
         } else {
             obj.url.clone()
@@ -44,7 +44,7 @@ impl OgEmbedComponent {
             if raw.starts_with("http://") || raw.starts_with("https://") {
                 Some(raw.clone())
             } else {
-                Url::parse(&url)
+                Url::parse(&obj_url)
                     .ok()
                     .and_then(|base| base.join(raw).ok())
                     .map(|u| u.to_string())
@@ -67,12 +67,12 @@ impl OgEmbedComponent {
                 description: obj.description.clone().unwrap_or_default(),
                 site_name: obj.site_name.clone().unwrap_or_else(|| {
                     // Fall back to hostname from URL
-                    Url::parse(&url)
+                    Url::parse(&obj_url)
                         .ok()
                         .and_then(|u| u.host_str().map(|h| h.to_string()))
                         .unwrap_or_default()
                 }),
-                url,
+                url: url.to_string(),
                 image_url,
                 image_handle: None,
             },

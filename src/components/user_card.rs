@@ -1,7 +1,7 @@
 //! A card displaying a user's profile, with their avatar and name.
 //! Displayed on the sidebar.
 
-use crate::utils::{download_binary, styling::prim_button_style};
+use crate::utils::{download::download_binary, styling::prim_button_style};
 use bytes::Bytes;
 use iced::{
     Background, Border, Element, Length, Task, Theme,

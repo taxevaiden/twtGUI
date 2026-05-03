@@ -1,6 +1,4 @@
 //! A page that renders a single twtxt feed and its metadata.
-//!
-//! This page can load an arbitrary feed URL and display its profile header + timeline.
 
 use bytes::Bytes;
 use iced::{
@@ -16,15 +14,16 @@ use iced::{
 };
 use tracing::{error, info};
 
-use crate::utils::{
-    Metadata, ParsedCache, Tweet, TweetNode, download_and_parse_twtxt, download_binary,
-    styling::{
-        sec_button_style, sec_pick_list_style, sec_pick_menu_style, secondary_text,
-        toolbar_button_style, toolbar_sinput_style,
-    },
+use crate::components::threaded_feed::LazyThreadedFeed;
+use crate::twtxt::metadata::Metadata;
+use crate::twtxt::threading::build_threads;
+use crate::twtxt::{Tweet, TweetNode, download_and_parse_twtxt};
+use crate::utils::download::{ParsedCache, download_binary};
+use crate::utils::styling::{
+    sec_button_style, sec_pick_list_style, sec_pick_menu_style, secondary_text,
+    toolbar_button_style, toolbar_sinput_style,
 };
 use crate::{components::threaded_feed, config::AppConfig};
-use crate::{components::threaded_feed::LazyThreadedFeed, utils::build_threads};
 
 /// The state for the view page.
 ///
@@ -188,7 +187,7 @@ impl ViewPage {
                     self.loading_archive = true;
                     self.pending_downloads += 1;
 
-                    let url = if let Ok(base) = url::Url::parse(&self.composer) {
+                    let url = if let Ok(base) = reqwest::Url::parse(&self.composer) {
                         match base.join(&prev.url) {
                             Ok(joined) => joined.to_string(),
                             Err(_) => prev.url.clone(),
@@ -239,7 +238,7 @@ impl ViewPage {
                     self.loading_archive = true;
                     self.pending_downloads += 1;
 
-                    let url = if let Ok(base) = url::Url::parse(&self.composer) {
+                    let url = if let Ok(base) = reqwest::Url::parse(&self.composer) {
                         match base.join(&prev.url) {
                             Ok(joined) => joined.to_string(),
                             Err(_) => prev.url.clone(),
@@ -314,7 +313,7 @@ impl ViewPage {
             .and_then(|m| m.nick.as_ref())
             .cloned()
             .unwrap_or_else(|| {
-                url::Url::parse(&self.composer)
+                reqwest::Url::parse(&self.composer)
                     .ok()
                     .and_then(|url| url.host_str().map(str::to_string))
                     .unwrap_or_else(|| "unknown".to_string())

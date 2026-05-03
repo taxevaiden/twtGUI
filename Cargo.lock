@@ -5293,7 +5293,6 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "url",
  "webbrowser",
  "winres",
 ]

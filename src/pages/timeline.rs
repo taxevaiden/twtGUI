@@ -8,8 +8,11 @@ use iced::{
 
 use tracing::{error, info};
 
-use crate::twtxt::{compose_twtxt_tweet, download_and_parse_feed, load_local_twtxt_feed};
-use crate::utils::{ParsedCache, Tweet, TweetNode, build_threads, download_binary};
+use crate::twtxt::threading::build_threads;
+use crate::twtxt::{
+    Tweet, TweetNode, compose_twtxt_tweet, download_and_parse_twtxt, load_local_twtxt_feed,
+};
+use crate::utils::download::{ParsedCache, download_binary};
 use crate::{
     components::threaded_feed::{self, LazyThreadedFeed},
     utils::styling::toolbar_minput_style,
@@ -127,7 +130,7 @@ impl TimelinePage {
                     let follow_url = link.url.clone();
 
                     tasks.push(Task::perform(
-                        download_and_parse_feed(
+                        download_and_parse_twtxt(
                             follow_nick.clone(),
                             follow_url.clone(),
                             None,

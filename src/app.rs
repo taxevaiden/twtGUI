@@ -1,8 +1,4 @@
 //! Core application state and top-level view handling.
-//!
-//! This module wires the high-level pages together and manages the current
-//! selected page, routing messages between sub-pages and updating the UI.
-//!
 
 use iced::{
     Background, Border, Element, Length, Task, Theme,

@@ -1,10 +1,15 @@
-//! Parsing utilities for twtxt feeds.
-//!
-//! This module focuses on parsing the raw twtxt text.
+//! Module for parsing twtxt tweet lines.
 
 use std::sync::OnceLock;
 
-use crate::utils::{Link, Metadata, Tweet, compute_twt_hash, hash::hash_sha256_str, is_image_url};
+use crate::{
+    twtxt::{
+        Tweet,
+        hash::compute_twt_hash,
+        metadata::{Link, Metadata},
+    },
+    utils::{hash::hash_sha256_str, is_image_url},
+};
 use chrono::{DateTime, Utc};
 use iced::widget::markdown;
 use regex::Regex;

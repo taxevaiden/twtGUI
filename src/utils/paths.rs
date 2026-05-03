@@ -1,3 +1,5 @@
+//! Module for handling file paths used in the twtGUI application.
+
 use std::path::PathBuf;
 
 use crate::utils::hash::hash_sha256_str;

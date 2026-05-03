@@ -7,11 +7,10 @@ use iced::{
 
 use crate::{
     config::AppConfig,
-    utils::{
-        Link,
-        styling::{toolbar_button_style, toolbar_sinput_style},
-    },
+    utils::styling::{toolbar_button_style, toolbar_sinput_style},
 };
+
+use crate::twtxt::metadata::Link;
 
 /// State for the following page.
 ///

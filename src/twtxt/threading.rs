@@ -1,10 +1,8 @@
-//! Threading utilities for twtxt feeds.
-//!
-//! This module focuses on building a tree of tweet replies for rendering threaded conversations.
+//! Module for building tweet thread trees.
 
 use std::collections::HashMap;
 
-use crate::utils::{Tweet, TweetNode};
+use crate::twtxt::{Tweet, TweetNode};
 
 /// Builds a tree of tweet replies for rendering threaded conversations.
 ///

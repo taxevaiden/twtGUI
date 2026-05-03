@@ -1,14 +1,18 @@
 //! A tweet renderer component, responsible for displaying a single tweet line.
 
+use crate::twtxt::Tweet;
+use crate::twtxt::metadata::Link;
+use crate::twtxt::parsing;
+use crate::utils::download::download_binary;
 use crate::{
     components::og_embed::{self, OgEmbedComponent},
     utils::{
-        Link, Tweet,
         download::download_opengraph,
-        download_binary, is_file_url, parsing,
+        is_file_url,
         styling::{sec_button_style, secondary_text},
     },
 };
+
 use bytes::Bytes;
 use chrono::Local;
 use iced::{

@@ -1,3 +1,5 @@
+//! Tracing layer that buffers log messages for UI display.
+
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use tracing::field::{Field, Visit};

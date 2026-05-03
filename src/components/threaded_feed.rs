@@ -1,10 +1,8 @@
 //! A lazily-rendered threaded feed component.
-//!
-//! Renders a subset of threads and loads more as the user scrolls.
 
 use crate::components::tweet::{self, TweetComponent};
+use crate::twtxt::{Tweet, TweetNode};
 use crate::utils::styling::sec_button_style;
-use crate::utils::{Tweet, TweetNode};
 use iced::widget::container;
 use iced::widget::rule::horizontal;
 use iced::{

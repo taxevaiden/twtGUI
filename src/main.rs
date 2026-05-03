@@ -1,6 +1,4 @@
 //! Entry point for twtGUI.
-//!
-//! Sets up the window, loads fonts, and launches the iced application.
 
 mod app;
 mod components;

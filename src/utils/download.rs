@@ -1,20 +1,14 @@
-//! Download and caching utilities used by the application.
-//!
-//! This module provides simple caching for HTTP requests (ETag / Last-Modified) and
-//! a convenience wrapper for downloading + parsing twtxt feeds.
+//! Module for downloading and caching files/twtxt feeds, with support for caching.
 
-use crate::utils::FeedBundle;
+use crate::twtxt::FeedBundle;
 use bytes::Bytes;
-use iced::widget::markdown;
 use opengraph::{self, Object};
 use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use serde::{Deserialize, Serialize};
 
 use tracing::{debug, info};
 
-use crate::utils::ParsedCache;
-use crate::utils::hash::hash_sha256_str;
-use crate::utils::paths::{get_bin_cache_paths, get_parsed_cache_path, get_txt_cache_path};
+use crate::utils::paths::{get_bin_cache_paths, get_txt_cache_path};
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("BUILD_VERSION"));
 
@@ -31,6 +25,15 @@ fn get_client() -> reqwest::Client {
                 .expect("Failed to build client")
         })
         .clone()
+}
+
+/// Internal cache format used when keeping a parsed feed around.
+///
+/// Stores the hash of the raw content so we can skip re-parsing unchanged input.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ParsedCache {
+    pub content_hash: String,
+    pub bundle: FeedBundle,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -196,76 +199,4 @@ pub async fn download_opengraph(url: String) -> Result<Object, String> {
     let obj = opengraph::extract(&mut page.to_string().as_bytes(), Default::default())
         .map_err(|e| e.to_string())?;
     Ok(obj)
-}
-
-/// Downloads a twtxt feed, parses it into a `ParsedCache`, and caches the parsed result.
-///
-/// If the feed content has not changed since the last download, the previously parsed
-/// bundle is reused.
-///
-/// `nick` is the display name to use for tweets when the feed metadata does not include one.
-/// `use_nick` controls whether the provided nick should override the feed's own nick.
-///
-/// Note that `nick` is only used as a display name, and does not affect the actual cached content.
-///
-/// `hash_url` is the URL to use for hashes (feed_hash, twt hash). If `None`, the main feed URL will be used.
-pub async fn download_and_parse_twtxt(
-    nick: String,
-    url: String,
-    hash_url: Option<String>,
-    use_nick: bool,
-) -> Result<ParsedCache, String> {
-    let raw = download_text(url.clone()).await?;
-    let raw_hash = hash_sha256_str(&raw);
-    let parsed_path = get_parsed_cache_path(&url)?;
-
-    if let Ok(cached_str) = std::fs::read_to_string(&parsed_path)
-        && let Ok(mut cache) = serde_json::from_str::<ParsedCache>(&cached_str)
-        && cache.content_hash == raw_hash
-    {
-        for tweet in &mut cache.bundle.tweets {
-            tweet.md_items = markdown::parse(&tweet.content).collect();
-        }
-        return Ok(apply_nick_override(cache, &nick, use_nick));
-    }
-
-    let metadata = crate::utils::parse_metadata(&raw);
-
-    let canonical_nick = metadata
-        .as_ref()
-        .and_then(|m| m.nick.as_ref())
-        .cloned()
-        .unwrap_or_else(|| {
-            url::Url::parse(&url)
-                .ok()
-                .and_then(|u| u.host_str().map(str::to_string))
-                .unwrap_or_else(|| nick.clone())
-        });
-
-    let tweets = crate::utils::parse_tweets(&canonical_nick, &url, hash_url.as_deref(), &raw);
-
-    let mut cache = ParsedCache {
-        content_hash: raw_hash,
-        bundle: FeedBundle { tweets, metadata },
-    };
-
-    let serialized = serde_json::to_string(&cache).map_err(|e| e.to_string())?;
-    let _ = std::fs::write(parsed_path, serialized);
-
-    for tweet in &mut cache.bundle.tweets {
-        tweet.md_items = markdown::parse(&tweet.content).collect();
-    }
-
-    Ok(apply_nick_override(cache, &nick, use_nick))
-}
-
-/// Optionally overrides the author name for all tweets in the bundle.
-fn apply_nick_override(mut parsed: ParsedCache, nick: &str, use_nick: bool) -> ParsedCache {
-    if use_nick {
-        for tweet in &mut parsed.bundle.tweets {
-            tweet.author = nick.to_string();
-        }
-    }
-
-    parsed
 }

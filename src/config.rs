@@ -1,7 +1,4 @@
 //! Configuration management for the application.
-//!
-//! This module handles reading and writing the `config.toml` stored in the user's
-//! configuration directory and keeping it in sync with any local `twtxt.txt` data.
 
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
@@ -12,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::utils::Metadata;
+use crate::twtxt::metadata::Metadata;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 

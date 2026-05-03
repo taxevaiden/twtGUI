@@ -1,4 +1,4 @@
-//! Styling utilities for twtxt GUI.
+//! Module for styling the UI of twtGUI.
 
 use iced::{
     Background, Border, Color, Shadow, Theme,
