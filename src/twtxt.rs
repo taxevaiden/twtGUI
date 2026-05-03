@@ -1,9 +1,9 @@
 //! Twtxt utilities for parsing, hashing, and threading tweets from twtxt feeds.
 
 use crate::config::AppConfig;
-use crate::twtxt::hash::compute_twt_hash;
 use crate::twtxt::metadata::Metadata;
 use crate::twtxt::parsing::{parse_metadata, parse_tweets, parse_twt_contents};
+use crate::twtxt::twt_hash::compute_twt_hash;
 use crate::utils::download::{ParsedCache, download_text};
 use crate::utils::hash::hash_sha256_str;
 use crate::utils::paths::get_parsed_cache_path;
@@ -15,10 +15,10 @@ use std::process::{Child, Command};
 
 use serde::{Deserialize, Serialize};
 
-pub mod hash;
 pub mod metadata;
 pub mod parsing;
 pub mod threading;
+pub mod twt_hash;
 
 /// A parsed tweet from a twtxt feed.
 ///

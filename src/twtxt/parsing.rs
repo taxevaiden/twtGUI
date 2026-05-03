@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 use crate::{
     twtxt::{
         Tweet,
-        hash::compute_twt_hash,
         metadata::{Link, Metadata},
+        twt_hash::compute_twt_hash,
     },
     utils::{hash::hash_sha256_str, is_image_url},
 };
