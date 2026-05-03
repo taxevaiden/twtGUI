@@ -1,5 +1,7 @@
 //! Entry point for twtGUI.
 
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod app;
 mod components;
 mod config;
