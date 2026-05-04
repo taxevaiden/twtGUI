@@ -1,5 +1,6 @@
 //! A tweet renderer component, responsible for displaying a single tweet line.
 
+use crate::components::tweet_viewer::TweetViewer;
 use crate::utils::download::download_binary;
 use crate::{
     components::og_embed::{self, OgEmbedComponent},
@@ -16,7 +17,7 @@ use twtxt::url::{is_media_url, is_twtxt_url};
 use bytes::Bytes;
 use chrono::Local;
 use iced::{
-    Background, Border, Color, ContentFit, Element, Length, Padding, Pixels, Task, Theme,
+    Background, Border, Color, Element, Length, Padding, Pixels, Task, Theme,
     border::Radius,
     widget::{
         Image, button, column, container,
@@ -176,7 +177,7 @@ impl TweetComponent {
 
         let code_bg = Color::from_rgba(0.0, 0.0, 0.0, 0.55);
 
-        let content = markdown::view(
+        let content = markdown::view_with(
             &self.md_items,
             markdown::Settings::with_text_size(
                 Pixels(12.0),
@@ -193,6 +194,7 @@ impl TweetComponent {
                     code_block_font: crate::app::MONOSPACE_FONT,
                 },
             ),
+            &TweetViewer::new(&self.image_urls, &self.image_handles),
         )
         .map(Message::LinkClicked);
 
@@ -238,31 +240,6 @@ impl TweetComponent {
         ]
         .on_link_click(Message::LinkClicked);
 
-        const MAX_WIDTH: f32 = 500.0;
-        const MAX_HEIGHT: f32 = 400.0;
-
-        let mut images_col = column![].spacing(4);
-        for entry in self.image_handles.iter().flatten() {
-            let (handle, img_w, img_h) = entry;
-            let image = if *img_w > 0 && *img_h > 0 {
-                let aspect = *img_h as f32 / *img_w as f32;
-                let render_h = (MAX_WIDTH * aspect).min(MAX_HEIGHT);
-                Image::new(handle)
-                    .width(Length::Fixed(MAX_WIDTH))
-                    .height(Length::Fixed(render_h))
-                    .content_fit(ContentFit::Contain)
-                    .filter_method(iced::widget::image::FilterMethod::Linear)
-            } else {
-                // fallback!
-                Image::new(handle)
-                    .width(Length::Fill)
-                    .height(Length::Shrink)
-                    .content_fit(ContentFit::Contain)
-                    .filter_method(iced::widget::image::FilterMethod::Linear)
-            };
-            images_col = images_col.push(image);
-        }
-
         let mut og_embeds_col = column![].spacing(6);
         for (i, embed) in self.og_embeds.iter().enumerate() {
             if let Some(embed) = embed {
@@ -285,7 +262,7 @@ impl TweetComponent {
             button(
                 row![
                     avatar_img,
-                    column![header, container(content), images_col, og_embeds_col]
+                    column![header, container(content), og_embeds_col]
                         .padding([6.0, 0.0])
                         .spacing(4)
                 ]

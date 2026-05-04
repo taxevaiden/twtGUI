@@ -8,6 +8,7 @@ members = ["twtxt"]
 
 [dependencies]
 iced = { version = "^0.14", features = ["wgpu", "image", "markdown", "highlighter", "tokio"] }
+iced_core = "^0.14"
 image = { version = "^0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 chrono = { version = "^0.4", features = ["serde"] }
 serde = { version = "^1", features = ["derive"] }

@@ -48,7 +48,7 @@ jobs:
         run: cargo build
 
       - name: Clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all -- -D warnings
 
       - name: Format
-        run: cargo fmt -- --check
+        run: cargo fmt --all -- --check
