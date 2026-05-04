@@ -3,6 +3,20 @@
 use chrono::{DateTime, TimeZone, Utc};
 use data_encoding::BASE32HEX_NOPAD;
 
+use blake2::{
+    Blake2bVar,
+    digest::{Update, VariableOutput},
+};
+
+pub fn hash_blake2b_str(s: &str) -> String {
+    let mut hasher = Blake2bVar::new(32).unwrap();
+    hasher.update(s.as_bytes());
+    let mut result = vec![0u8; 32];
+    hasher.finalize_variable(&mut result).unwrap();
+
+    BASE32HEX_NOPAD.encode(&result).to_lowercase()
+}
+
 /// Computes the canonical tweet hash used by the twtxt protocol.
 ///
 /// The hash is computed from the feed URL, timestamp, and tweet text.
@@ -11,19 +25,9 @@ use data_encoding::BASE32HEX_NOPAD;
 ///
 /// Any slight change will significantly change the resulting hash.
 pub fn compute_twt_hash(feed_url: &str, timestamp: &str, text: &str) -> String {
-    use blake2::{
-        Blake2bVar,
-        digest::{Update, VariableOutput},
-    };
-
     let payload = format!("{feed_url}\n{timestamp}\n{text}");
 
-    let mut hasher = Blake2bVar::new(32).unwrap();
-    hasher.update(payload.as_bytes());
-    let mut result = vec![0u8; 32];
-    hasher.finalize_variable(&mut result).unwrap();
-
-    let encoded = BASE32HEX_NOPAD.encode(&result).to_lowercase();
+    let result = hash_blake2b_str(&payload);
 
     // https://twtxt.dev/exts/twt-hash-v2.html
     // Tweets after 2026-07-01T00:00:00Z use the v2 hash format.
@@ -35,9 +39,9 @@ pub fn compute_twt_hash(feed_url: &str, timestamp: &str, text: &str) -> String {
 
     // v2 uses the first 12 letters, whereas v1 uses the last 7 letters.
     if use_v2_hash {
-        encoded.chars().take(12).collect::<String>()
+        result.chars().take(12).collect::<String>()
     } else {
-        encoded
+        result
             .chars()
             .rev()
             .take(7)

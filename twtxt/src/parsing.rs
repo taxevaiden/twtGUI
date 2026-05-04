@@ -3,15 +3,12 @@
 use std::sync::OnceLock;
 
 use crate::{
-    twtxt::{
-        Tweet,
-        metadata::{Link, Metadata},
-        twt_hash::compute_twt_hash,
-    },
-    utils::{hash::hash_sha256_str, is_image_url},
+    Tweet,
+    metadata::{Link, Metadata},
+    twt_hash::{compute_twt_hash, hash_blake2b_str},
+    url::is_image_url,
 };
 use chrono::{DateTime, Utc};
-use iced::widget::markdown;
 use regex::Regex;
 
 static SUBJECT_RE: OnceLock<Regex> = OnceLock::new();
@@ -32,7 +29,7 @@ pub fn get_url_re() -> &'static Regex {
     })
 }
 
-/// Parses a single tweet line, extracting a reply hash and converting mentions to markdown.
+/// Parses a single tweet line. Mentions are converted to markdown hyperlinks.
 ///
 /// Returns a tuple of `(reply_to_hash, markdown_content)`.
 pub fn parse_twt_contents(raw_content: &str) -> (Option<String>, String) {
@@ -204,7 +201,7 @@ pub fn parse_metadata(input: &str) -> Option<Metadata> {
 /// canonical feed URL used for hash computation.
 pub fn parse_tweets(author: &str, url: &str, hash_url: Option<&str>, input: &str) -> Vec<Tweet> {
     let author_name = author.to_string();
-    let feed_hash = hash_sha256_str(input);
+    let feed_hash = hash_blake2b_str(input);
 
     input
         .lines()
@@ -213,7 +210,6 @@ pub fn parse_tweets(author: &str, url: &str, hash_url: Option<&str>, input: &str
             let (timestamp_str, raw_content) = line.split_once('\t')?;
             let raw_content = raw_content.trim();
             let (reply_to, display_content) = parse_twt_contents(raw_content);
-            let items = markdown::parse(&display_content).collect();
 
             Some(Tweet {
                 hash: compute_twt_hash(hash_url.unwrap_or(url), timestamp_str, raw_content),
@@ -225,7 +221,6 @@ pub fn parse_tweets(author: &str, url: &str, hash_url: Option<&str>, input: &str
                 author: author_name.clone(),
                 url: url.to_string(),
                 content: display_content,
-                md_items: items,
             })
         })
         .collect()

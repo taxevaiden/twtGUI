@@ -1,12 +1,17 @@
 //! Module for downloading and caching files/twtxt feeds, with support for caching.
 
-use crate::twtxt::FeedBundle;
+use crate::utils::paths::get_parsed_cache_path;
 use bytes::Bytes;
 use opengraph::{self, Object};
 use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use serde::{Deserialize, Serialize};
 
 use tracing::{debug, info};
+use twtxt::{
+    FeedBundle,
+    parsing::{parse_metadata, parse_tweets},
+    twt_hash::hash_blake2b_str,
+};
 
 use crate::utils::paths::{get_bin_cache_paths, get_txt_cache_path};
 
@@ -25,15 +30,6 @@ fn get_client() -> reqwest::Client {
                 .expect("Failed to build client")
         })
         .clone()
-}
-
-/// Internal cache format used when keeping a parsed feed around.
-///
-/// Stores the hash of the raw content so we can skip re-parsing unchanged input.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ParsedCache {
-    pub content_hash: String,
-    pub bundle: FeedBundle,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -199,4 +195,70 @@ pub async fn download_opengraph(url: String) -> Result<Object, String> {
     let obj = opengraph::extract(&mut page.to_string().as_bytes(), Default::default())
         .map_err(|e| e.to_string())?;
     Ok(obj)
+}
+
+/// Downloads a twtxt feed, parses it into a `ParsedCache`, and caches the parsed result.
+///
+/// If the feed content has not changed since the last download, the previously parsed
+/// bundle is reused.
+///
+/// `nick` is the display name to use for tweets when the feed metadata does not include one.
+/// `use_nick` controls whether the provided nick should override the feed's own nick.
+///
+/// Note that `nick` is only used as a display name, and does not affect the actual cached content.
+///
+/// `hash_url` is the URL to use for hashes (feed_hash, twt hash). If `None`, the main feed URL will be used.
+pub async fn download_and_parse_twtxt(
+    nick: String,
+    url: String,
+    hash_url: Option<String>,
+    use_nick: bool,
+) -> Result<FeedBundle, String> {
+    let raw = download_text(url.clone()).await?;
+    let raw_hash = hash_blake2b_str(&raw);
+    let parsed_path = get_parsed_cache_path(&url)?;
+
+    if let Ok(cached_str) = std::fs::read_to_string(&parsed_path)
+        && let Ok(cache) = serde_json::from_str::<FeedBundle>(&cached_str)
+        && cache.hash == raw_hash
+    {
+        return Ok(apply_nick_override(cache, &nick, use_nick));
+    }
+
+    let metadata = parse_metadata(&raw);
+
+    let canonical_nick = metadata
+        .as_ref()
+        .and_then(|m| m.nick.as_ref())
+        .cloned()
+        .unwrap_or_else(|| {
+            reqwest::Url::parse(&url)
+                .ok()
+                .and_then(|u| u.host_str().map(str::to_string))
+                .unwrap_or_else(|| nick.clone())
+        });
+
+    let tweets = parse_tweets(&canonical_nick, &url, hash_url.as_deref(), &raw);
+
+    let cache = FeedBundle {
+        hash: raw_hash,
+        tweets,
+        metadata,
+    };
+
+    let serialized = serde_json::to_string(&cache).map_err(|e| e.to_string())?;
+    let _ = std::fs::write(parsed_path, serialized);
+
+    Ok(apply_nick_override(cache, &nick, use_nick))
+}
+
+/// Optionally overrides the author name for all tweets in the bundle.
+fn apply_nick_override(mut bundle: FeedBundle, nick: &str, use_nick: bool) -> FeedBundle {
+    if use_nick {
+        for tweet in &mut bundle.tweets {
+            tweet.author = nick.to_string();
+        }
+    }
+
+    bundle
 }

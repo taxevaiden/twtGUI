@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::twtxt::{Tweet, TweetNode};
+use crate::{Tweet, TweetNode};
 
 /// Builds a tree of tweet replies for rendering threaded conversations.
 ///

@@ -8,16 +8,17 @@ use iced::{
 
 use tracing::{error, info};
 
-use crate::twtxt::threading::build_threads;
-use crate::twtxt::{
-    Tweet, TweetNode, compose_twtxt_tweet, download_and_parse_twtxt, load_local_twtxt_feed,
-};
-use crate::utils::download::{ParsedCache, download_binary};
+use crate::utils::download::{download_and_parse_twtxt, download_binary};
 use crate::{
     components::threaded_feed::{self, LazyThreadedFeed},
     utils::styling::toolbar_minput_style,
 };
 use crate::{config::AppConfig, utils::styling::toolbar_button_style};
+use twtxt::{
+    FeedBundle, Tweet, TweetNode,
+    file::{WriteConfig, load, write},
+    threading::build_threads,
+};
 
 /// The state for the timeline page.
 ///
@@ -50,7 +51,7 @@ pub enum Message {
     FeedLoaded {
         nick: String,
         url: String,
-        result: Box<Result<ParsedCache, String>>,
+        result: Box<Result<FeedBundle, String>>,
     },
     /// An avatar image has finished downloading.
     AvatarLoaded {
@@ -113,8 +114,8 @@ impl TimelinePage {
                 let mut tasks = Vec::new();
 
                 // handle local file
-                if let Some((nick, url, parsed)) = load_local_twtxt_feed(config) {
-                    self.local_hash = Some(parsed.content_hash.clone());
+                if let Some((nick, url, parsed)) = load(&config.paths.twtxt, &config.metadata) {
+                    self.local_hash = Some(parsed.hash.clone());
                     tasks.push(Task::done(Message::FeedLoaded {
                         nick,
                         url,
@@ -157,14 +158,10 @@ impl TimelinePage {
 
                 info!("Timeline: feed successfully loaded for {} @ {}", nick, url);
 
-                let content_hash = parsed.content_hash.clone();
-                let avatar_url = parsed
-                    .bundle
-                    .metadata
-                    .as_ref()
-                    .and_then(|m| m.avatar.clone());
+                let content_hash = parsed.hash.clone();
+                let avatar_url = parsed.metadata.as_ref().and_then(|m| m.avatar.clone());
 
-                self.tweets.extend(parsed.bundle.tweets);
+                self.tweets.extend(parsed.tweets);
 
                 let avatar_task = avatar_url
                     .map(|avatar_url| {
@@ -242,7 +239,18 @@ impl TimelinePage {
     fn post_composed_tweet(&mut self, config: &AppConfig) -> Task<Message> {
         let composer_text = self.composer.text();
 
-        if let Some(tweet) = compose_twtxt_tweet(&composer_text, config, self.local_hash.clone()) {
+        // longest method ever???? lmao
+        if let Some(tweet) = write(
+            &composer_text,
+            &config.metadata,
+            WriteConfig {
+                path: &config.paths.twtxt,
+                pre_script: config.paths.pre_tweet_script.as_deref(),
+                post_script: config.paths.post_tweet_script.as_deref(),
+                script: config.paths.tweet_script.as_deref(),
+                local_hash: self.local_hash.clone(),
+            },
+        ) {
             self.tweets.insert(0, tweet);
             self.composer = text_editor::Content::new();
             self.sort_and_refresh()

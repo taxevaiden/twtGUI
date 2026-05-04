@@ -10,7 +10,7 @@ use crate::{
     utils::styling::{toolbar_button_style, toolbar_sinput_style},
 };
 
-use crate::twtxt::metadata::Link;
+use twtxt::metadata::Link;
 
 /// State for the following page.
 ///

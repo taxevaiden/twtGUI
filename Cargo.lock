@@ -5293,8 +5293,21 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "twtxt",
  "webbrowser",
  "winres",
+]
+
+[[package]]
+name = "twtxt"
+version = "0.1.0"
+dependencies = [
+ "blake2",
+ "chrono",
+ "data-encoding",
+ "regex",
+ "serde",
+ "url",
 ]
 
 [[package]]

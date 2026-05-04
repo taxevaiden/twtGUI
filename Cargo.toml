@@ -3,6 +3,9 @@ name = "twtgui"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = ["twtxt"]
+
 [dependencies]
 iced = { version = "^0.14", features = ["wgpu", "image", "markdown", "highlighter", "tokio"] }
 image = { version = "^0.25", default-features = false, features = ["jpeg", "png", "webp"] }
@@ -24,6 +27,7 @@ tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
 tracing-appender = "^0.2"
 dark-light = "^2.0"
 opengraph = { git = "https://github.com/taxevaiden/opengraph", branch = "master" }
+twtxt = { version = "0.1.0", path = "twtxt" }
 
 [build-dependencies]
 chrono = "^0.4"

@@ -9,9 +9,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::twtxt::metadata::Metadata;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use twtxt::metadata::Metadata;
 
 /// Returns the canonical path where the application's config file is stored.
 ///

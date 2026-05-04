@@ -15,15 +15,15 @@ use iced::{
 use tracing::{error, info};
 
 use crate::components::threaded_feed::LazyThreadedFeed;
-use crate::twtxt::metadata::Metadata;
-use crate::twtxt::threading::build_threads;
-use crate::twtxt::{Tweet, TweetNode, download_and_parse_twtxt};
-use crate::utils::download::{ParsedCache, download_binary};
+use crate::utils::download::{download_and_parse_twtxt, download_binary};
 use crate::utils::styling::{
     sec_button_style, sec_pick_list_style, sec_pick_menu_style, secondary_text,
     toolbar_button_style, toolbar_sinput_style,
 };
 use crate::{components::threaded_feed, config::AppConfig};
+use twtxt::metadata::Metadata;
+use twtxt::threading::build_threads;
+use twtxt::{FeedBundle, Tweet, TweetNode};
 
 /// The state for the view page.
 ///
@@ -51,7 +51,7 @@ pub enum Message {
     /// A feed has finished loading.
     FeedLoaded {
         url: String,
-        result: Box<Result<ParsedCache, String>>,
+        result: Box<Result<FeedBundle, String>>,
     },
     /// The user pressed the button.
     LoadArchive,
@@ -63,7 +63,7 @@ pub enum Message {
     },
     /// An archived feed has finished loading.
     ArchiveLoaded {
-        result: Box<Result<ParsedCache, String>>,
+        result: Box<Result<FeedBundle, String>>,
     },
     /// Navigate to another page.
     RedirectToPage(crate::app::RedirectInfo),
@@ -138,10 +138,10 @@ impl ViewPage {
                 };
 
                 info!("View: feed successfully loaded for {}", url);
-                self.metadata = parsed.bundle.metadata.clone();
-                self.tweets = parsed.bundle.tweets;
+                self.metadata = parsed.metadata.clone();
+                self.tweets = parsed.tweets;
                 self.tweets.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
-                self.feed_hash = parsed.content_hash.clone();
+                self.feed_hash = parsed.hash.clone();
                 let thread_tree = build_threads(&self.tweets);
                 let feed_task = self
                     .feed
@@ -149,7 +149,6 @@ impl ViewPage {
                     .map(Message::Feed);
 
                 let avatar_task = parsed
-                    .bundle
                     .metadata
                     .and_then(|meta| meta.avatar)
                     .map(|avatar_url| {
@@ -158,7 +157,7 @@ impl ViewPage {
                             Message::AvatarLoaded {
                                 url: url.clone(),
                                 result: Box::new(res),
-                                hash: parsed.content_hash.clone(),
+                                hash: parsed.hash.clone(),
                             }
                         })
                     })
@@ -221,11 +220,11 @@ impl ViewPage {
                     return Task::none();
                 };
 
-                for tweet in &mut parsed.bundle.tweets {
+                for tweet in &mut parsed.tweets {
                     tweet.feed_hash = self.feed_hash.clone();
                 }
 
-                self.tweets.extend(parsed.bundle.tweets);
+                self.tweets.extend(parsed.tweets);
                 self.tweets.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
                 self.thread_tree = build_threads(&self.tweets);
 
@@ -234,7 +233,7 @@ impl ViewPage {
                     .reset(&self.thread_tree, &self.tweets)
                     .map(Message::Feed);
 
-                let chain_task = if let Some(prev) = parsed.bundle.metadata.and_then(|m| m.prev) {
+                let chain_task = if let Some(prev) = parsed.metadata.and_then(|m| m.prev) {
                     self.loading_archive = true;
                     self.pending_downloads += 1;
 

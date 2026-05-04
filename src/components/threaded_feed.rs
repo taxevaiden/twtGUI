@@ -1,7 +1,6 @@
 //! A lazily-rendered threaded feed component.
 
 use crate::components::tweet::{self, TweetComponent};
-use crate::twtxt::{Tweet, TweetNode};
 use crate::utils::styling::sec_button_style;
 use iced::widget::container;
 use iced::widget::rule::horizontal;
@@ -11,6 +10,7 @@ use iced::{
 };
 use std::collections::HashMap;
 use tracing::{debug, error};
+use twtxt::{Tweet, TweetNode};
 
 /// How many additional threads to load when reaching the bottom of the scroll.
 const BATCH_SIZE: usize = 10; // Threads can be large, so smaller batches are safer

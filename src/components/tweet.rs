@@ -1,17 +1,17 @@
 //! A tweet renderer component, responsible for displaying a single tweet line.
 
-use crate::twtxt::Tweet;
-use crate::twtxt::metadata::Link;
-use crate::twtxt::parsing;
 use crate::utils::download::download_binary;
 use crate::{
     components::og_embed::{self, OgEmbedComponent},
     utils::{
         download::download_opengraph,
-        is_file_url,
         styling::{sec_button_style, secondary_text},
     },
 };
+use twtxt::Tweet;
+use twtxt::metadata::Link;
+use twtxt::parsing;
+use twtxt::url::{is_media_url, is_twtxt_url};
 
 use bytes::Bytes;
 use chrono::Local;
@@ -53,12 +53,14 @@ pub struct TweetComponent {
     image_handles: Vec<Option<(Handle, u32, u32)>>,
     og_objects: Vec<Option<Object>>,
     og_embeds: Vec<Option<OgEmbedComponent>>,
+    md_items: Vec<markdown::Item>,
 }
 
 impl TweetComponent {
     pub fn new(index: usize, tweets: &[Tweet]) -> (Self, Task<Message>) {
         let tweet = &tweets[index];
-        let image_urls = collect_image_urls(&tweet.md_items);
+        let md_items: Vec<markdown::Item> = markdown::parse(&tweet.content).collect();
+        let image_urls = collect_image_urls(&md_items);
         let image_handles = vec![None; image_urls.len()];
         let urls = collect_urls(&tweet.content);
         let og_objects = vec![None; urls.len()];
@@ -95,6 +97,7 @@ impl TweetComponent {
                 image_handles,
                 og_objects,
                 og_embeds,
+                md_items,
             },
             Task::batch(tasks),
         )
@@ -174,7 +177,7 @@ impl TweetComponent {
         let code_bg = Color::from_rgba(0.0, 0.0, 0.0, 0.55);
 
         let content = markdown::view(
-            &tweet.md_items,
+            &self.md_items,
             markdown::Settings::with_text_size(
                 Pixels(12.0),
                 markdown::Style {
@@ -326,7 +329,7 @@ fn collect_urls(text: &str) -> Vec<Link> {
             let m = url.as_str();
 
             // Skip markdown images ![alt](url), feeds, and files
-            if m.starts_with('!') || m.contains("twtxt.txt") || is_file_url(m) {
+            if m.starts_with('!') || is_twtxt_url(m) || is_media_url(m) {
                 continue;
             }
 

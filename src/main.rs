@@ -7,7 +7,6 @@ mod components;
 mod config;
 mod logging;
 mod pages;
-mod twtxt;
 mod utils;
 
 use app::TwtxtApp;
