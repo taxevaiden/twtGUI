@@ -1,8 +1,9 @@
 use iced::{
-    Background, Border, Color, ContentFit, Element, Font, Length, Theme,
-    border::Radius,
-    widget::{Image, column, container, image::Handle, markdown, rich_text, space},
+    ContentFit, Element, Font, Length, Theme,
+    widget::{Image, button, column, image::Handle, markdown, rich_text, space},
 };
+
+use crate::utils::styling::prim_button_style;
 
 pub struct TweetViewer<'b> {
     image_urls: &'b [String],
@@ -65,17 +66,10 @@ where
             None => space::horizontal().width(0).into(),
         };
 
-        container(column![rich_text(alt.spans(settings.style)), image].spacing(8))
+        button(column![rich_text(alt.spans(settings.style)), image].spacing(8))
             .padding(8)
-            .style(|theme: &iced::Theme| container::Style {
-                background: Some(Background::from(theme.palette().background)),
-                border: Border {
-                    width: 0.0,
-                    color: Color::TRANSPARENT,
-                    radius: Radius::new(8),
-                },
-                ..Default::default()
-            })
+            .on_press(url.clone())
+            .style(prim_button_style)
             .into()
     }
 }
