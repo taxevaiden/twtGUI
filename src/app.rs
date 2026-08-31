@@ -24,7 +24,7 @@ use tracing::{debug, error};
 /// The application state (model) used by `iced`.
 ///
 /// Keeps the currently selected page and all of the page-specific state.
-pub struct TwtxtApp {
+pub struct App {
     page: Page,
     config: AppConfig,
     timeline: timeline::TimelinePage,
@@ -125,7 +125,7 @@ fn log_line_to_elements<'a>(line: &str, theme: &Theme) -> Vec<Span<'a, Message>>
     }]
 }
 
-impl TwtxtApp {
+impl App {
     pub fn new(log_buffer: LogBuffer) -> (Self, Task<Message>) {
         let config = AppConfig::load().expect("Failed to load config");
         let (timeline, timeline_task) = timeline::TimelinePage::new();

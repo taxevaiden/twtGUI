@@ -208,6 +208,7 @@ pub fn parse_tweets(author: &str, url: &str, hash_url: Option<&str>, input: &str
         .filter(|line| !line.starts_with('#'))
         .filter_map(|line| {
             let (timestamp_str, raw_content) = line.split_once('\t')?;
+            let timestamp_str = timestamp_str.trim();
             let raw_content = raw_content.trim();
             let (reply_to, display_content) = parse_twt_contents(raw_content);
 

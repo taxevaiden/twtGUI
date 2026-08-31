@@ -9,7 +9,7 @@ mod logging;
 mod pages;
 mod utils;
 
-use app::TwtxtApp;
+use app::App;
 use iced::{Pixels, Settings, font};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -39,68 +39,64 @@ fn main() -> iced::Result {
 
     let icon = iced::window::icon::from_file_data(ICON_BYTES, None).unwrap();
 
-    iced::application(
-        move || TwtxtApp::new(log_buffer.clone()),
-        TwtxtApp::update,
-        TwtxtApp::view,
-    )
-    .subscription(TwtxtApp::subscription)
-    .title("twtGUI")
-    .window(iced::window::Settings {
-        min_size: Some(iced::Size::new(800.0, 700.0)),
-        icon: Some(icon),
-        #[allow(clippy::needless_update)]
-        platform_specific: iced::window::settings::PlatformSpecific {
-            #[cfg(target_os = "macos")]
-            title_hidden: true,
-            #[cfg(target_os = "macos")]
-            titlebar_transparent: true,
-            #[cfg(target_os = "macos")]
-            fullsize_content_view: true,
+    iced::application(move || App::new(log_buffer.clone()), App::update, App::view)
+        .subscription(App::subscription)
+        .title("twtGUI")
+        .window(iced::window::Settings {
+            min_size: Some(iced::Size::new(800.0, 700.0)),
+            icon: Some(icon),
+            #[allow(clippy::needless_update)]
+            platform_specific: iced::window::settings::PlatformSpecific {
+                #[cfg(target_os = "macos")]
+                title_hidden: true,
+                #[cfg(target_os = "macos")]
+                titlebar_transparent: true,
+                #[cfg(target_os = "macos")]
+                fullsize_content_view: true,
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    })
-    .settings(Settings {
-        default_text_size: Pixels(12.0),
-        ..Default::default()
-    })
-    .theme(|app: &TwtxtApp| app.theme())
-    .font(
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/fonts/iosevka-aile.ttf"
-        ))
-        .as_slice(),
-    )
-    .font(
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/fonts/iosevka-aile-bold.ttf"
-        ))
-        .as_slice(),
-    )
-    .font(
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/fonts/iosevka-aile-italic.ttf"
-        ))
-        .as_slice(),
-    )
-    .font(
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/fonts/iosevka-aile-italic-bold.ttf"
-        ))
-        .as_slice(),
-    )
-    .font(
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/fonts/iosevka-mono.ttf"
-        ))
-        .as_slice(),
-    )
-    .default_font(font::Font::with_name("Iosevka Aile"))
-    .run()
+        })
+        .settings(Settings {
+            default_text_size: Pixels(12.0),
+            ..Default::default()
+        })
+        .theme(|app: &App| app.theme())
+        .font(
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/fonts/iosevka-aile.ttf"
+            ))
+            .as_slice(),
+        )
+        .font(
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/fonts/iosevka-aile-bold.ttf"
+            ))
+            .as_slice(),
+        )
+        .font(
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/fonts/iosevka-aile-italic.ttf"
+            ))
+            .as_slice(),
+        )
+        .font(
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/fonts/iosevka-aile-italic-bold.ttf"
+            ))
+            .as_slice(),
+        )
+        .font(
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/fonts/iosevka-mono.ttf"
+            ))
+            .as_slice(),
+        )
+        .default_font(font::Font::with_name("Iosevka Aile"))
+        .run()
 }

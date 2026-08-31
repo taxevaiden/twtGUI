@@ -240,6 +240,8 @@ impl TweetComponent {
         ]
         .on_link_click(Message::LinkClicked);
 
+        let hash = tweet.hash.clone();
+
         let mut og_embeds_col = column![].spacing(6);
         for (i, embed) in self.og_embeds.iter().enumerate() {
             if let Some(embed) = embed {
@@ -262,9 +264,13 @@ impl TweetComponent {
             button(
                 row![
                     avatar_img,
-                    column![header, container(content), og_embeds_col]
-                        .padding([6.0, 0.0])
-                        .spacing(4)
+                    column![
+                        header,
+                        container(content),
+                        og_embeds_col
+                    ]
+                    .padding([6.0, 0.0])
+                    .spacing(4)
                 ]
                 .spacing(12),
             )
