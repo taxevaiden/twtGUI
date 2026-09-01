@@ -1,10 +1,10 @@
 # Contributing
 
-Thank you for showing interest in supporting the development of twtGUI! twtGUI is a solo project at the moment, so I truly appreciate your help!
+Thank you for showing interest in supporting the development of twtGUI! twtGUI is a solo passion project at the moment, so I truly appreciate your help!
 
 Please read this before opening a pull request to avoid wasted effort.
 
-## Getting Started
+## Getting started
 
 As detailed in the readme, you'll need Rust and Cargo installed. You can install them with [Rustup.](https://rustup.rs/)
 
@@ -15,7 +15,7 @@ As detailed in the readme, you'll need Rust and Cargo installed. You can install
     
 Cargo should automatically install any dependencies.
 
-## Before Contributing
+## Before contributing
 
 You should open an issue first before working on anything significant.
 
@@ -34,11 +34,11 @@ Please run the following before submitting a pull request:
 
 Pull requests should pass both `cargo fmt` and `cargo clippy` without any warnings or errors before being merged.
 
-## Pull Request Guidelines
+## Pull request guidelines
 
 To ensure things are simple and maintainable:
 
-- Please keep them small and focused ( i probably won't have time to review large PRs... i'm sorry... :( )
+- Please keep them small and focused ( i don't have the time to review large PRs... i'm sorry... :( )
 - Target the `main` branch
 - Describe your changes and why you're making them
 - Reference any relevant issues

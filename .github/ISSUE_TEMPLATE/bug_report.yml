@@ -5,40 +5,29 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug! Please fill out as much as you can.
+        Thanks for taking the time to report a bug!
 
   - type: input
     id: version
     attributes:
-      label: twtGUI Version
+      label: twtGUI version
       description: Found in the release tag (e.g. `2026.426-bb53f52`), or in the bottom left corner of the window.
       placeholder: "2026.426-bb53f52"
     validations:
       required: true
 
-  - type: dropdown
+  - type: input
     id: os
     attributes:
-      label: Operating System
-      options:
-        - Windows
-        - macOS
-        - Linux
-    validations:
-      required: true
-
-  - type: input
-    id: os-version
-    attributes:
-      label: OS Version
-      placeholder: "e.g. Windows 11, Ubuntu 24.04, macOS 15.4"
+      label: Operating system
+      placeholder: "e.g. Windows 11 25H2, Ubuntu 24.04, macOS 26.6.2"
     validations:
       required: true
 
   - type: dropdown
     id: twtxt-spec
     attributes:
-      label: twtxt Spec Version
+      label: twtxt spec version
       description: |
         Does your `twtxt.txt` follow v1 or v2?
 
@@ -84,7 +73,7 @@ body:
   - type: textarea
     id: steps
     attributes:
-      label: Steps to Reproduce
+      label: Steps to reproduce
       placeholder: |
         1. Open twtGUI
         2. Navigate to ...
@@ -113,11 +102,9 @@ body:
     attributes:
       label: Panic output or logs (optional)
       description: |
-        If twtGUI crashed or printed any errors, paste them here.
+        You can take a screenshot of the built-in Logs page and paste it here, but it's preferred if you were to upload the log file instead.
 
-        You can paste the output through the built-in Logs page, but it'd be preferred to paste the log file instead.
-
-        You can find the log directory through your system's data directory:
+        You can find log files through your system's data directory:
 
         | Platform | File path |
         |----------|-----------|

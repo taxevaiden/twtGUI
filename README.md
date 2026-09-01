@@ -11,11 +11,14 @@
 </p>
  
 > [!IMPORTANT]
-> This project is under active development and may introduce breaking changes! Please check for updates regularly.
+> This is a passion project. Expect frequent/infrequent activity and breaking changes.
+> Please remember to update and [clear your cache](#cache) regularly!
 
-## Installing
+## Getting started
 
-This client supports every desktop operating system (Windows, macOS, Linux). You can grab the latest release [here.](https://github.com/taxevaiden/twtGUI/releases/latest)
+You should already have your own twtxt.txt locally and hosted on your own website.
+
+You can grab the latest release [here.](https://github.com/taxevaiden/twtGUI/releases/latest)
 
 > **macOS note:** macOS may show a warning that twtGUI is damaged. 
 > This is because the app is not notarized. Run:
@@ -52,8 +55,9 @@ See [CONTRIBUTING.md.](CONTRIBUTING.md)
 
 ## Features
 
-- Tweeting markdown-formatted posts
-- Fetching viewing, and following feeds
+- Markdown-formatted posts
+- Tweeting to your own feed
+- Fetching, viewing, and following feeds
 - The [twtxt v2 specification](https://twtxt.dev)
   - [Mentions](https://twtxt.dev/#mentions-and-threads:~:text=Mentions%20in%20the,a%20Twtxt%20URI.)
   - [Twt Hash Extension](https://twtxt.dev/exts/twt-hash.html)
@@ -70,10 +74,6 @@ If you're someone whose `twtxt.txt` follows the twtxt v2 specification, expect s
 
 twtGUI uses a `config.toml` file to store user settings and follow information.  
 The file is automatically created on first launch if it does not already exist.
-
-There is currently no dedicated settings page in twtGUI, so you must edit `config.toml` manually to change settings such as your nickname or the path to your `twtxt.txt` file.
-
-However, feeds you follow can be managed through the **Following** page inside twtGUI.
 
 If you need to edit `config.toml`, you can find it in your system’s configuration directory:
 
@@ -231,6 +231,18 @@ post_tweet_script = "C:/path/to/post_tweet_script.bat"
 ```
 
 Script files should be in `.bat` format on Windows, and in `.sh` format on Unix-like systems.
+
+## Cache
+
+Changes in the format posts and media are cached happen often, which could result in undefined behavior when updating without clearing your cache.
+
+If you ever need to clear your cache, you can do it yourself in your system's cache directory:
+
+| Platform | Directory |
+|----------|-----------|
+| Windows  | `C:\Users\yourname\AppData\Local\taxevaiden\twtGUI\cache` |
+| macOS    | `/Users/yourname/Library/Caches/com.taxevaiden.twtGUI` |
+| Linux    | `/home/yourname/.cache/twtgui` |
 
 ---
 

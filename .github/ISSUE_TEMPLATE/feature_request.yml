@@ -18,28 +18,10 @@ body:
   - type: textarea
     id: motivation
     attributes:
-      label: Why would this be useful?
-      description: What problem does it solve, or what would it improve? Would this be useful for only you, or for others?
+      label: Why should this be in twtGUI?
+      description: What problem does it solve. What would it improve?
     validations:
       required: true
-
-  - type: dropdown
-    id: spec-related
-    attributes:
-      label: Is this related to a twtxt spec extension?
-      options:
-        - "Yes"
-        - "No"
-        - "Not sure"
-    validations:
-      required: true
-
-  - type: input
-    id: spec-link
-    attributes:
-      label: If yes, which extension?
-      description: Link or name the relevant extension from https://twtxt.dev
-      placeholder: "e.g. Twt Hash Extension -- https://twtxt.dev/exts/twt-hash.html"
 
   - type: textarea
     id: additional
