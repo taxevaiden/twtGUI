@@ -66,10 +66,6 @@ See [CONTRIBUTING.md.](CONTRIBUTING.md)
   - [Metadata Extension](https://twtxt.dev/exts/metadata.html)
   - [Archive Feeds Extension](https://twtxt.dev/exts/archive-feeds.html)
 
-If you're someone whose `twtxt.txt` only follows the twtxt v1 specification, this client's great for you!
-
-If you're someone whose `twtxt.txt` follows the twtxt v2 specification, expect some features to be missing.
-
 ## Configuration
 
 twtGUI uses a `config.toml` file to store user settings and follow information.  
